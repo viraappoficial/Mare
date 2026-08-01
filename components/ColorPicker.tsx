@@ -24,7 +24,6 @@ type Props = {
 };
 
 function clamp(n: number, min: number, max: number) {
-  'worklet';
   return Math.min(max, Math.max(min, n));
 }
 
@@ -34,12 +33,57 @@ export function ColorPicker({ value, onChange }: Props) {
   const [s, setS] = useState(inicial.s);
   const [v, setV] = useState(inicial.v);
 
+  // Guardamos h/s/v também em refs porque os handlers do PanResponder são
+  // criados uma vez (useRef) e não devem ler valores "presos" (stale) do
+  // primeiro render.
+  const hRef = useRef(h);
+  const sRef = useRef(s);
+  const vRef = useRef(v);
+  hRef.current = h;
+  sRef.current = s;
+  vRef.current = v;
+
   const atualizar = (novoH: number, novoS: number, novoV: number) => {
     setH(novoH);
     setS(novoS);
     setV(novoV);
     onChange(hsvToHex(novoH, novoS, novoV));
   };
+
+  // Posição da área na tela (em coordenadas de página), medida no layout.
+  // Necessário porque `locationX/Y` do evento não é confiável durante o
+  // arraste no navegador — usamos as coordenadas absolutas do gesto
+  // (gestureState.moveX/moveY) menos essa posição.
+  const svViewRef = useRef<View>(null);
+  const svOffset = useRef({ x: 0, y: 0 });
+  const hueViewRef = useRef<View>(null);
+  const hueOffset = useRef({ x: 0, y: 0 });
+
+  function medirSv() {
+    svViewRef.current?.measure((_x, _y, _w, _h2, pageX, pageY) => {
+      svOffset.current = { x: pageX, y: pageY };
+    });
+  }
+
+  function medirHue() {
+    hueViewRef.current?.measure((_x, _y, _w, _h2, pageX, pageY) => {
+      hueOffset.current = { x: pageX, y: pageY };
+    });
+  }
+
+  function lidarSv(pageX: number, pageY: number) {
+    const x = pageX - svOffset.current.x;
+    const y = pageY - svOffset.current.y;
+    const novoS = clamp((x / SV_SIZE) * 100, 0, 100);
+    const novoV = clamp(100 - (y / SV_SIZE) * 100, 0, 100);
+    atualizar(hRef.current, novoS, novoV);
+  }
+
+  function lidarHue(pageX: number) {
+    const x = pageX - hueOffset.current.x;
+    const novoH = clamp((x / SV_SIZE) * 360, 0, 360);
+    atualizar(novoH, sRef.current, vRef.current);
+  }
 
   const svResponder = useRef(
     PanResponder.create({
@@ -48,8 +92,11 @@ export function ColorPicker({ value, onChange }: Props) {
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => lidarSv(e.nativeEvent.locationX, e.nativeEvent.locationY),
-      onPanResponderMove: (e) => lidarSv(e.nativeEvent.locationX, e.nativeEvent.locationY),
+      onPanResponderGrant: (_e, g) => {
+        medirSv();
+        lidarSv(g.x0, g.y0);
+      },
+      onPanResponderMove: (_e, g) => lidarSv(g.moveX, g.moveY),
     })
   ).current;
 
@@ -60,27 +107,24 @@ export function ColorPicker({ value, onChange }: Props) {
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: (e) => lidarHue(e.nativeEvent.locationX),
-      onPanResponderMove: (e) => lidarHue(e.nativeEvent.locationX),
+      onPanResponderGrant: (_e, g) => {
+        medirHue();
+        lidarHue(g.x0);
+      },
+      onPanResponderMove: (_e, g) => lidarHue(g.moveX),
     })
   ).current;
-
-  function lidarSv(x: number, y: number) {
-    const novoS = clamp((x / SV_SIZE) * 100, 0, 100);
-    const novoV = clamp(100 - (y / SV_SIZE) * 100, 0, 100);
-    atualizar(h, novoS, novoV);
-  }
-
-  function lidarHue(x: number) {
-    const novoH = clamp((x / SV_SIZE) * 360, 0, 360);
-    atualizar(novoH, s, v);
-  }
 
   const corPura = hsvToHex(h, 100, 100);
 
   return (
     <View style={styles.container}>
-      <View style={[styles.svArea, styles.semGestoDoNavegador]} {...svResponder.panHandlers}>
+      <View
+        ref={svViewRef}
+        onLayout={medirSv}
+        style={[styles.svArea, styles.semGestoDoNavegador]}
+        {...svResponder.panHandlers}
+      >
         <LinearGradient
           colors={['#FFFFFF', corPura]}
           start={{ x: 0, y: 0 }}
@@ -106,7 +150,12 @@ export function ColorPicker({ value, onChange }: Props) {
         />
       </View>
 
-      <View style={[styles.hueArea, styles.semGestoDoNavegador]} {...hueResponder.panHandlers}>
+      <View
+        ref={hueViewRef}
+        onLayout={medirHue}
+        style={[styles.hueArea, styles.semGestoDoNavegador]}
+        {...hueResponder.panHandlers}
+      >
         <LinearGradient
           colors={HUE_CORES}
           start={{ x: 0, y: 0 }}
