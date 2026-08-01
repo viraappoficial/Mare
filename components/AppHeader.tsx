@@ -1,11 +1,14 @@
+import { useIsFocused } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { MareLogo } from './MareLogo';
+import { AnimatedMareLogo } from './AnimatedMareLogo';
 import { colors, fonts, spacing } from '../lib/theme';
 
 export function AppHeader() {
+  const focado = useIsFocused();
+
   return (
     <View style={styles.header}>
-      <MareLogo size={24} />
+      <AnimatedMareLogo size={24} gatilho={focado} />
       <Text style={styles.wordmark}>maré</Text>
     </View>
   );

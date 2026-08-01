@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
-import { MareLogo } from '../../components/MareLogo';
+import { AnimatedMareLogo } from '../../components/AnimatedMareLogo';
 
 export default function Login() {
   const [modo, setModo] = useState<'entrar' | 'criar'>('entrar');
@@ -42,7 +42,7 @@ export default function Login() {
     >
       <View style={styles.conteudo}>
         <View style={styles.header}>
-          <MareLogo size={56} />
+          <AnimatedMareLogo size={56} gatilho="login" />
           <Text style={styles.titulo}>maré</Text>
           <Text style={styles.subtitulo}>um espaço calmo para registrar o que você sente</Text>
         </View>
