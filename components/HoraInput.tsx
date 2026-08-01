@@ -25,25 +25,33 @@ function formatarHora(d: Date) {
 // próprio sistema. Em iOS/Android usa o DateTimePicker nativo (mode="time").
 export function HoraInput({ value, onChange }: Props) {
   if (Platform.OS === 'web') {
-    return createElement('input', {
-      type: 'time',
-      value,
-      onChange: (e: { target: { value: string } }) => onChange(e.target.value),
-      style: {
-        backgroundColor: colors.bg,
-        border: `1px solid ${colors.border}`,
-        borderRadius: radii.sm,
-        paddingLeft: spacing.md,
-        paddingRight: spacing.md,
-        paddingTop: spacing.sm + 2,
-        paddingBottom: spacing.sm + 2,
-        color: colors.text,
-        fontFamily: fonts.mono,
-        fontSize: 15,
-        width: '100%',
-        colorScheme: 'dark',
-      },
-    });
+    return (
+      <View style={styles.webWrap}>
+        {createElement('input', {
+          type: 'time',
+          value,
+          onChange: (e: { target: { value: string } }) => onChange(e.target.value),
+          style: {
+            display: 'block',
+            boxSizing: 'border-box',
+            backgroundColor: colors.bg,
+            border: `1px solid ${colors.border}`,
+            borderRadius: radii.sm,
+            paddingLeft: spacing.md,
+            paddingRight: spacing.md,
+            paddingTop: spacing.sm + 2,
+            paddingBottom: spacing.sm + 2,
+            color: colors.text,
+            fontFamily: fonts.mono,
+            fontSize: 15,
+            width: '100%',
+            maxWidth: '100%',
+            minWidth: 0,
+            colorScheme: 'dark',
+          },
+        })}
+      </View>
+    );
   }
 
   const [mostrar, setMostrar] = useState(false);
@@ -69,6 +77,7 @@ export function HoraInput({ value, onChange }: Props) {
 }
 
 const styles = StyleSheet.create({
+  webWrap: { width: '100%', minWidth: 0 },
   campo: {
     backgroundColor: colors.bg,
     borderWidth: 1,
