@@ -1,13 +1,27 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { colors } from '../lib/theme';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-// Mesma curva, só o ponto de controle sobe e desce — dá o efeito de onda.
-const ONDA_BAIXA = 'M14 34 Q22 29, 32 34 T50 34';
-const ONDA_ALTA = 'M14 34 Q22 19, 32 34 T50 34';
+const BASELINE = 34;
+const AMPLITUDE = 9;
+// Cada ponto de controle oscila com uma fase diferente — é isso que faz
+// a onda parecer que está viajando/se movendo, em vez de só "respirar" no lugar.
+const FASE_C1 = 0;
+const FASE_C2 = (Math.PI * 2) / 3;
+
+const QUADROS = 24;
+
+function gerarQuadro(t: number) {
+  const cy1 = BASELINE - AMPLITUDE * Math.sin(t + FASE_C1);
+  const cy2 = BASELINE - AMPLITUDE * Math.sin(t + FASE_C2);
+  return `M14 34 Q22 ${cy1.toFixed(1)}, 32 34 Q42 ${cy2.toFixed(1)}, 50 34`;
+}
+
+const QUADROS_ONDA = Array.from({ length: QUADROS + 1 }, (_, i) => gerarQuadro((i / QUADROS) * Math.PI * 2));
+const INPUT_RANGE_ONDA = QUADROS_ONDA.map((_, i) => i / QUADROS);
 
 type Props = {
   size?: number;
@@ -21,20 +35,12 @@ export function AnimatedMareLogo({ size = 28, gatilho }: Props) {
 
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(onda, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
-        Animated.timing(onda, {
-          toValue: 0,
-          duration: 900,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: false,
-        }),
-      ])
+      Animated.timing(onda, {
+        toValue: 1,
+        duration: 2600,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      })
     );
     loop.start();
     return () => loop.stop();
@@ -50,7 +56,10 @@ export function AnimatedMareLogo({ size = 28, gatilho }: Props) {
     }).start();
   }, [gatilho, entrada]);
 
-  const d = onda.interpolate({ inputRange: [0, 1], outputRange: [ONDA_BAIXA, ONDA_ALTA] });
+  const d = useMemo(
+    () => onda.interpolate({ inputRange: INPUT_RANGE_ONDA, outputRange: QUADROS_ONDA }),
+    [onda]
+  );
   const translateY = entrada.interpolate({ inputRange: [0, 0.6, 1], outputRange: [-14, 4, 0] });
   const scale = entrada.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.6, 1.1, 1] });
   const opacity = entrada.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] });
