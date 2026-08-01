@@ -16,6 +16,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="escolher-perfil" options={{ presentation: 'fullScreenModal' }} />
       <Stack.Screen name="tutorial" options={{ presentation: 'fullScreenModal' }} />
     </Stack>
   );

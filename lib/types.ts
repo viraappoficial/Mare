@@ -18,3 +18,11 @@ export type Registro = {
 export type RegistroComSentimento = Registro & {
   sentimentos_catalogo: SentimentoCatalogo | null;
 };
+
+export type TipoPerfil = 'paciente' | 'psicologo';
+
+export type Perfil = {
+  id: string;
+  tipo: TipoPerfil;
+  criado_em: string;
+};

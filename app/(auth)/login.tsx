@@ -38,7 +38,7 @@ export default function Login() {
       return;
     }
 
-    // Criando conta: o tutorial só aparece nesse fluxo, nunca num login normal.
+    // Criando conta: escolher-perfil e tutorial só aparecem nesse fluxo, nunca num login normal.
     const { data, error } = await supabase.auth.signUp({ email: email.trim(), password: senha });
     setCarregando(false);
     if (error) {
@@ -46,7 +46,7 @@ export default function Login() {
       return;
     }
     if (data.session) {
-      router.replace('/(app)/tutorial');
+      router.replace('/(app)/escolher-perfil');
     } else {
       setInfo('Conta criada! Confirma seu email pra poder entrar.');
     }
