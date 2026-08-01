@@ -25,13 +25,10 @@ const INPUT_RANGE_ONDA = QUADROS_ONDA.map((_, i) => i / QUADROS);
 
 type Props = {
   size?: number;
-  /** Muda esse valor (ex: nome da rota) pra disparar a animação de entrada. */
-  gatilho?: unknown;
 };
 
-export function AnimatedMareLogo({ size = 28, gatilho }: Props) {
+export function AnimatedMareLogo({ size = 28 }: Props) {
   const onda = useRef(new Animated.Value(0)).current;
-  const entrada = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -46,30 +43,15 @@ export function AnimatedMareLogo({ size = 28, gatilho }: Props) {
     return () => loop.stop();
   }, [onda]);
 
-  useEffect(() => {
-    entrada.setValue(0);
-    Animated.spring(entrada, {
-      toValue: 1,
-      useNativeDriver: true,
-      friction: 5,
-      tension: 55,
-    }).start();
-  }, [gatilho, entrada]);
-
   const d = useMemo(
     () => onda.interpolate({ inputRange: INPUT_RANGE_ONDA, outputRange: QUADROS_ONDA }),
     [onda]
   );
-  const translateY = entrada.interpolate({ inputRange: [0, 0.6, 1], outputRange: [-14, 4, 0] });
-  const scale = entrada.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.6, 1.1, 1] });
-  const opacity = entrada.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] });
 
   return (
-    <Animated.View style={{ transform: [{ translateY }, { scale }], opacity }}>
-      <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-        <Rect width={64} height={64} rx={15} fill={colors.accent} />
-        <AnimatedPath d={d} stroke="#0A0B0F" strokeWidth={5} strokeLinecap="round" fill="none" />
-      </Svg>
-    </Animated.View>
+    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
+      <Rect width={64} height={64} rx={15} fill={colors.accent} />
+      <AnimatedPath d={d} stroke="#0A0B0F" strokeWidth={5} strokeLinecap="round" fill="none" />
+    </Svg>
   );
 }
