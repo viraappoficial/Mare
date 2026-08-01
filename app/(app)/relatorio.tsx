@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
 import { RegistroItem } from '../../components/RegistroItem';
+import { AppHeader } from '../../components/AppHeader';
+import { EditarRegistroModal } from '../../components/EditarRegistroModal';
 import { exportarRelatorioPdf } from '../../lib/pdf';
-import type { RegistroComSentimento } from '../../lib/types';
+import type { RegistroComSentimento, SentimentoCatalogo } from '../../lib/types';
 
 type Periodo = 'semana' | 'mes' | 'tudo';
 
@@ -29,6 +31,8 @@ export default function Relatorio() {
   const [registros, setRegistros] = useState<RegistroComSentimento[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [exportando, setExportando] = useState(false);
+  const [sentimentos, setSentimentos] = useState<SentimentoCatalogo[]>([]);
+  const [registroEditando, setRegistroEditando] = useState<RegistroComSentimento | null>(null);
 
   const carregar = useCallback(async (p: Periodo) => {
     setCarregando(true);
@@ -48,6 +52,25 @@ export default function Relatorio() {
   useEffect(() => {
     carregar(periodo);
   }, [periodo, carregar]);
+
+  useEffect(() => {
+    supabase
+      .from('sentimentos_catalogo')
+      .select('*')
+      .order('nome', { ascending: true })
+      .then(({ data }) => setSentimentos(data ?? []));
+  }, []);
+
+  async function salvarEdicaoRegistro(id: string, sentimentoId: string, sentidoEm: string) {
+    const { error } = await supabase
+      .from('registros')
+      .update({ sentimento_id: sentimentoId, sentido_em: sentidoEm })
+      .eq('id', id);
+    if (!error) {
+      setRegistroEditando(null);
+      await carregar(periodo);
+    }
+  }
 
   const resumo = useMemo(() => {
     const contagem = new Map<string, { nome: string; cor: string; total: number }>();
@@ -75,6 +98,7 @@ export default function Relatorio() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <AppHeader />
       <View style={styles.header}>
         <View style={styles.tituloLinha}>
           <Text style={styles.titulo}>Relatório</Text>
@@ -116,7 +140,7 @@ export default function Relatorio() {
         <FlatList
           data={registros}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RegistroItem registro={item} />}
+          renderItem={({ item }) => <RegistroItem registro={item} onEditar={setRegistroEditando} />}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           contentContainerStyle={styles.listaConteudo}
           ListHeaderComponent={
@@ -150,6 +174,13 @@ export default function Relatorio() {
           }
         />
       )}
+
+      <EditarRegistroModal
+        registro={registroEditando}
+        sentimentos={sentimentos}
+        onFechar={() => setRegistroEditando(null)}
+        onSalvar={salvarEdicaoRegistro}
+      />
     </SafeAreaView>
   );
 }

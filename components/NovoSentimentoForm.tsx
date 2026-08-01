@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
+import { ColorPicker } from './ColorPicker';
 
 const CORES_DISPONIVEIS = [
   '#4FD1C5',
@@ -21,6 +22,7 @@ type Props = {
 export function NovoSentimentoForm({ onCancelar, onCriar }: Props) {
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(CORES_DISPONIVEIS[0]);
+  const [misturarCor, setMisturarCor] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
@@ -43,19 +45,41 @@ export function NovoSentimentoForm({ onCancelar, onCriar }: Props) {
         autoFocus
       />
 
-      <View style={styles.cores}>
-        {CORES_DISPONIVEIS.map((c) => (
-          <Pressable
-            key={c}
-            onPress={() => setCor(c)}
-            style={[
-              styles.corSwatch,
-              { backgroundColor: c },
-              cor === c && styles.corSwatchAtiva,
-            ]}
-          />
-        ))}
+      <View style={styles.corLinha}>
+        <View style={styles.cores}>
+          {CORES_DISPONIVEIS.map((c) => (
+            <Pressable
+              key={c}
+              onPress={() => {
+                setCor(c);
+                setMisturarCor(false);
+              }}
+              style={[
+                styles.corSwatch,
+                { backgroundColor: c },
+                cor === c && !misturarCor && styles.corSwatchAtiva,
+              ]}
+            />
+          ))}
+        </View>
+
+        <Pressable
+          onPress={() => setMisturarCor((v) => !v)}
+          style={[styles.corSwatch, styles.corCustomBotao, misturarCor && styles.corSwatchAtiva]}
+        >
+          <View style={[styles.corCustomPreview, { backgroundColor: cor }]} />
+        </Pressable>
       </View>
+
+      {misturarCor && (
+        <View style={styles.pickerWrap}>
+          <ColorPicker value={cor} onChange={setCor} />
+          <View style={styles.hexLinha}>
+            <View style={[styles.hexSwatch, { backgroundColor: cor }]} />
+            <Text style={styles.hexTexto}>{cor}</Text>
+          </View>
+        </View>
+      )}
 
       <View style={styles.acoes}>
         <Pressable style={styles.botaoCancelar} onPress={onCancelar}>
@@ -96,9 +120,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 2,
     color: colors.text,
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 16,
   },
-  cores: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  corLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap' },
+  cores: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, flex: 1 },
   corSwatch: {
     width: 28,
     height: 28,
@@ -107,6 +132,21 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   corSwatchAtiva: { borderColor: colors.text },
+  corCustomBotao: {
+    borderStyle: 'dashed',
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  corCustomPreview: {
+    width: 16,
+    height: 16,
+    borderRadius: radii.full,
+  },
+  pickerWrap: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+  hexLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  hexSwatch: { width: 18, height: 18, borderRadius: radii.full, borderWidth: 1, borderColor: colors.border },
+  hexTexto: { fontFamily: fonts.mono, fontSize: 12, color: colors.textMuted },
   acoes: { flexDirection: 'row', gap: spacing.sm },
   botaoCancelar: {
     flex: 1,

@@ -34,6 +34,9 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: npx expo export --platform web
 
+      - name: Injetar tags de PWA/zoom no index.html
+        run: node scripts/inject-pwa-html.js
+
       - name: Fallback SPA (404 -> index)
         run: cp dist/index.html dist/404.html
 

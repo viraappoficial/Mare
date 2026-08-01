@@ -9,24 +9,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Svg, { Path, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
-
-function MareLogo({ size = 56 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
-      <Rect width={64} height={64} rx={15} fill={colors.accent} />
-      <Path
-        d="M14 34 Q22 24, 32 34 T50 34"
-        stroke="#0A0B0F"
-        strokeWidth={5}
-        strokeLinecap="round"
-        fill="none"
-      />
-    </Svg>
-  );
-}
+import { MareLogo } from '../../components/MareLogo';
 
 export default function Login() {
   const [modo, setModo] = useState<'entrar' | 'criar'>('entrar');
@@ -57,7 +42,7 @@ export default function Login() {
     >
       <View style={styles.conteudo}>
         <View style={styles.header}>
-          <MareLogo />
+          <MareLogo size={56} />
           <Text style={styles.titulo}>maré</Text>
           <Text style={styles.subtitulo}>um espaço calmo para registrar o que você sente</Text>
         </View>

@@ -3,12 +3,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../lib/auth-context';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
+import { AppHeader } from '../../components/AppHeader';
 
 export default function Perfil() {
   const { session } = useAuth();
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <AppHeader />
       <View style={styles.conteudo}>
         <Text style={styles.titulo}>Perfil</Text>
         <Text style={styles.email}>{session?.user.email}</Text>

@@ -18,6 +18,8 @@ import { colors, fonts, radii, spacing } from '../../lib/theme';
 import { SentimentoChip } from '../../components/SentimentoChip';
 import { RegistroItem } from '../../components/RegistroItem';
 import { NovoSentimentoForm } from '../../components/NovoSentimentoForm';
+import { AppHeader } from '../../components/AppHeader';
+import { EditarRegistroModal } from '../../components/EditarRegistroModal';
 import type { RegistroComSentimento, SentimentoCatalogo } from '../../lib/types';
 
 function inicioDoDia() {
@@ -36,6 +38,7 @@ export default function Hoje() {
   const [salvando, setSalvando] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
   const [criandoSentimento, setCriandoSentimento] = useState(false);
+  const [registroEditando, setRegistroEditando] = useState<RegistroComSentimento | null>(null);
 
   const carregarSentimentos = useCallback(async () => {
     const { data } = await supabase
@@ -99,6 +102,17 @@ export default function Hoje() {
     setAtualizando(false);
   }
 
+  async function salvarEdicaoRegistro(id: string, sentimentoId: string, sentidoEm: string) {
+    const { error } = await supabase
+      .from('registros')
+      .update({ sentimento_id: sentimentoId, sentido_em: sentidoEm })
+      .eq('id', id);
+    if (!error) {
+      setRegistroEditando(null);
+      await carregarRegistrosDeHoje();
+    }
+  }
+
   if (carregando) {
     return (
       <SafeAreaView style={styles.centro}>
@@ -113,10 +127,11 @@ export default function Hoje() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SafeAreaView style={styles.container} edges={['top']}>
+        <AppHeader />
         <FlatList
           data={registros}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RegistroItem registro={item} />}
+          renderItem={({ item }) => <RegistroItem registro={item} onEditar={setRegistroEditando} />}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           contentContainerStyle={styles.listaConteudo}
           refreshControl={
@@ -187,6 +202,13 @@ export default function Hoje() {
             <Text style={styles.vazio}>Nenhum registro ainda hoje. Como você tá?</Text>
           }
         />
+
+        <EditarRegistroModal
+          registro={registroEditando}
+          sentimentos={sentimentos}
+          onFechar={() => setRegistroEditando(null)}
+          onSalvar={salvarEdicaoRegistro}
+        />
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -212,7 +234,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     color: colors.text,
     fontFamily: fonts.body,
-    fontSize: 14,
+    fontSize: 16,
     minHeight: 80,
     textAlignVertical: 'top',
   },

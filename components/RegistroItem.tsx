@@ -8,7 +8,12 @@ function formatarHora(iso: string) {
   return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export function RegistroItem({ registro }: { registro: RegistroComSentimento }) {
+type Props = {
+  registro: RegistroComSentimento;
+  onEditar?: (registro: RegistroComSentimento) => void;
+};
+
+export function RegistroItem({ registro, onEditar }: Props) {
   const [expandido, setExpandido] = useState(false);
   const cor = registro.sentimentos_catalogo?.cor ?? colors.accent;
   const nome = registro.sentimentos_catalogo?.nome ?? 'Sentimento';
@@ -26,6 +31,11 @@ export function RegistroItem({ registro }: { registro: RegistroComSentimento }) 
           <Text style={[styles.nome, { color: cor }]}>{nome}</Text>
           <View style={styles.topoDireita}>
             <Text style={styles.hora}>{formatarHora(registro.sentido_em)}</Text>
+            {onEditar && (
+              <Pressable hitSlop={8} onPress={() => onEditar(registro)}>
+                <Text style={styles.editar}>editar</Text>
+              </Pressable>
+            )}
             {temTexto && (
               <Text style={styles.seta}>{expandido ? '▲' : '▼'}</Text>
             )}
@@ -59,9 +69,10 @@ const styles = StyleSheet.create({
   },
   conteudo: { flex: 1, gap: 2 },
   topo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  topoDireita: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
+  topoDireita: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2 },
   nome: { fontFamily: fonts.bodySemiBold, fontSize: 13 },
   hora: { fontFamily: fonts.mono, fontSize: 11, color: colors.textMuted },
+  editar: { fontFamily: fonts.bodyMedium, fontSize: 10.5, color: colors.accent },
   seta: { fontSize: 9, color: colors.textMuted },
   texto: { fontFamily: fonts.body, fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
 });
