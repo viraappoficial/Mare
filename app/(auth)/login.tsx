@@ -44,13 +44,13 @@ export default function Login() {
         <View style={styles.header}>
           <AnimatedMareLogo size={56} gatilho="login" />
           <Text style={styles.titulo}>maré</Text>
-          <Text style={styles.subtitulo}>um espaço calmo para registrar o que você sente</Text>
+          <Text style={styles.subtitulo}>Um espaço calmo para registrar o que você sente.</Text>
         </View>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="email"
+            placeholder="Email"
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
             keyboardType="email-address"
@@ -59,7 +59,7 @@ export default function Login() {
           />
           <TextInput
             style={styles.input}
-            placeholder="senha"
+            placeholder="Senha"
             placeholderTextColor={colors.textMuted}
             secureTextEntry
             value={senha}
