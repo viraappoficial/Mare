@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
 import { AnimatedMareLogo } from '../../components/AnimatedMareLogo';
@@ -19,20 +20,36 @@ export default function Login() {
   const [senha, setSenha] = useState('');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function enviar() {
     setErro(null);
+    setInfo(null);
     if (!email.trim() || !senha) {
       setErro('Preenche email e senha.');
       return;
     }
     setCarregando(true);
-    const { error } =
-      modo === 'entrar'
-        ? await supabase.auth.signInWithPassword({ email: email.trim(), password: senha })
-        : await supabase.auth.signUp({ email: email.trim(), password: senha });
+
+    if (modo === 'entrar') {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
+      setCarregando(false);
+      if (error) setErro(error.message);
+      return;
+    }
+
+    // Criando conta: o tutorial só aparece nesse fluxo, nunca num login normal.
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password: senha });
     setCarregando(false);
-    if (error) setErro(error.message);
+    if (error) {
+      setErro(error.message);
+      return;
+    }
+    if (data.session) {
+      router.replace('/(app)/tutorial');
+    } else {
+      setInfo('Conta criada! Confirma seu email pra poder entrar.');
+    }
   }
 
   return (
@@ -67,6 +84,7 @@ export default function Login() {
           />
 
           {erro && <Text style={styles.erro}>{erro}</Text>}
+          {info && <Text style={styles.info}>{info}</Text>}
 
           <Pressable style={styles.botao} onPress={enviar} disabled={carregando}>
             {carregando ? (
@@ -120,6 +138,11 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 12,
     color: '#F0644B',
+  },
+  info: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.accent,
   },
   botao: {
     backgroundColor: colors.accent,

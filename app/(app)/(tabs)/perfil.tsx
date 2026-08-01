@@ -1,9 +1,9 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth-context';
-import { colors, fonts, radii, spacing } from '../../lib/theme';
-import { AppHeader } from '../../components/AppHeader';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../lib/auth-context';
+import { colors, fonts, radii, spacing } from '../../../lib/theme';
+import { AppHeader } from '../../../components/AppHeader';
 
 export default function Perfil() {
   const { session } = useAuth();

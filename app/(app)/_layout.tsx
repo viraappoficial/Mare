@@ -1,7 +1,6 @@
-import { Redirect, Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { Redirect, Stack } from 'expo-router';
 import { useAuth } from '../../lib/auth-context';
-import { colors, fonts } from '../../lib/theme';
+import { colors } from '../../lib/theme';
 
 export default function AppLayout() {
   const { session, carregando } = useAuth();
@@ -10,39 +9,14 @@ export default function AppLayout() {
   if (!session) return <Redirect href="/(auth)/login" />;
 
   return (
-    <Tabs
+    <Stack
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-        },
-        tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11 },
+        contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Hoje',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>◐</Text>,
-        }}
-      />
-      <Tabs.Screen
-        name="relatorio"
-        options={{
-          title: 'Relatório',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>▤</Text>,
-        }}
-      />
-      <Tabs.Screen
-        name="perfil"
-        options={{
-          title: 'Perfil',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>○</Text>,
-        }}
-      />
-    </Tabs>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="tutorial" options={{ presentation: 'fullScreenModal' }} />
+    </Stack>
   );
 }

@@ -12,15 +12,15 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth-context';
-import { colors, fonts, radii, spacing } from '../../lib/theme';
-import { SentimentoChip } from '../../components/SentimentoChip';
-import { RegistroItem } from '../../components/RegistroItem';
-import { NovoSentimentoForm } from '../../components/NovoSentimentoForm';
-import { AppHeader } from '../../components/AppHeader';
-import { EditarRegistroModal } from '../../components/EditarRegistroModal';
-import type { RegistroComSentimento, SentimentoCatalogo } from '../../lib/types';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../lib/auth-context';
+import { colors, fonts, radii, spacing } from '../../../lib/theme';
+import { SentimentoChip } from '../../../components/SentimentoChip';
+import { RegistroItem } from '../../../components/RegistroItem';
+import { NovoSentimentoForm } from '../../../components/NovoSentimentoForm';
+import { AppHeader } from '../../../components/AppHeader';
+import { EditarRegistroModal } from '../../../components/EditarRegistroModal';
+import type { RegistroComSentimento, SentimentoCatalogo } from '../../../lib/types';
 
 function inicioDoDia() {
   const d = new Date();

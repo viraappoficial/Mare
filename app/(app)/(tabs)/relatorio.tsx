@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '../../lib/supabase';
-import { colors, fonts, radii, spacing } from '../../lib/theme';
-import { RegistroItem } from '../../components/RegistroItem';
-import { AppHeader } from '../../components/AppHeader';
-import { EditarRegistroModal } from '../../components/EditarRegistroModal';
-import { exportarRelatorioPdf } from '../../lib/pdf';
-import type { RegistroComSentimento, SentimentoCatalogo } from '../../lib/types';
+import { supabase } from '../../../lib/supabase';
+import { colors, fonts, radii, spacing } from '../../../lib/theme';
+import { RegistroItem } from '../../../components/RegistroItem';
+import { AppHeader } from '../../../components/AppHeader';
+import { EditarRegistroModal } from '../../../components/EditarRegistroModal';
+import { exportarRelatorioPdf } from '../../../lib/pdf';
+import type { RegistroComSentimento, SentimentoCatalogo } from '../../../lib/types';
 
 type Periodo = 'semana' | 'mes' | 'tudo' | 'personalizado';
 
