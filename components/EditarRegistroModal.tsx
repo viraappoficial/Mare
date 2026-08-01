@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import { SentimentoChip } from './SentimentoChip';
+import { DataInput } from './DataInput';
+import { HoraInput } from './HoraInput';
 import type { RegistroComSentimento, SentimentoCatalogo } from '../lib/types';
 
 function paraDataInput(iso: string) {
@@ -91,23 +93,16 @@ export function EditarRegistroModal({
           <Text style={styles.label}>Quando senti</Text>
           <View style={styles.linhaDataHora}>
             <View style={styles.inputWrap}>
-              <TextInput
-                style={[styles.input, restringirAoDiaDeHoje && styles.inputTravado]}
-                value={data}
-                onChangeText={setData}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor={colors.textMuted}
-                editable={!restringirAoDiaDeHoje}
-              />
+              {restringirAoDiaDeHoje ? (
+                <View style={[styles.input, styles.inputTravado]}>
+                  <Text style={styles.textoTravado}>{data}</Text>
+                </View>
+              ) : (
+                <DataInput value={data} onChange={setData} />
+              )}
             </View>
             <View style={[styles.inputWrap, styles.inputWrapHora]}>
-              <TextInput
-                style={styles.input}
-                value={hora}
-                onChangeText={setHora}
-                placeholder="HH:MM"
-                placeholderTextColor={colors.textMuted}
-              />
+              <HoraInput value={hora} onChange={setHora} />
             </View>
           </View>
           {restringirAoDiaDeHoje && (
@@ -170,13 +165,9 @@ const styles = StyleSheet.create({
     borderRadius: radii.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
-    color: colors.text,
-    fontFamily: fonts.mono,
-    fontSize: 15,
-    minWidth: 0,
-    width: '100%',
   },
-  inputTravado: { color: colors.textMuted, opacity: 0.6 },
+  inputTravado: { opacity: 0.6 },
+  textoTravado: { fontFamily: fonts.mono, fontSize: 15, color: colors.textMuted },
   dica: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: -spacing.xs },
   erro: { fontFamily: fonts.body, fontSize: 12, color: '#F0644B' },
   acoes: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },

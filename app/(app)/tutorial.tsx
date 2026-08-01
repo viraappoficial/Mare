@@ -30,6 +30,7 @@ const PASSOS = [
 
 export default function Tutorial() {
   const [passo, setPasso] = useState(0);
+  const primeiro = passo === 0;
   const ultimo = passo === PASSOS.length - 1;
   const atual = PASSOS[passo];
 
@@ -43,6 +44,10 @@ export default function Tutorial() {
     } else {
       setPasso((p) => p + 1);
     }
+  }
+
+  function voltar() {
+    setPasso((p) => Math.max(0, p - 1));
   }
 
   return (
@@ -75,9 +80,16 @@ export default function Tutorial() {
           ))}
         </View>
 
-        <Pressable style={styles.botao} onPress={avancar}>
-          <Text style={styles.botaoTexto}>{ultimo ? 'Começar' : 'Próximo'}</Text>
-        </Pressable>
+        <View style={styles.botoes}>
+          {!primeiro && (
+            <Pressable style={styles.botaoVoltar} onPress={voltar}>
+              <Text style={styles.botaoVoltarTexto}>Voltar</Text>
+            </Pressable>
+          )}
+          <Pressable style={[styles.botao, !primeiro && styles.botaoComVoltar]} onPress={avancar}>
+            <Text style={styles.botaoTexto}>{ultimo ? 'Começar' : 'Próximo'}</Text>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -116,11 +128,23 @@ const styles = StyleSheet.create({
     borderRadius: radii.full,
     backgroundColor: colors.border,
   },
+  botoes: { flexDirection: 'row', gap: spacing.sm },
   botao: {
+    flex: 1,
     backgroundColor: colors.accent,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
+  botaoComVoltar: { flex: 2 },
   botaoTexto: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: '#0A0B0F' },
+  botaoVoltar: {
+    flex: 1,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  botaoVoltarTexto: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.textMuted },
 });

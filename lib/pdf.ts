@@ -89,7 +89,12 @@ export function buildRelatorioHtml(
 <meta charset="utf-8" />
 <style>
   @page { margin: 28px; }
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  html { background: ${colors.bg}; }
   body {
     margin: 0;
     background: ${colors.bg};

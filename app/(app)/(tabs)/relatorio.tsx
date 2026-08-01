@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../../lib/theme';
 import { RegistroItem } from '../../../components/RegistroItem';
 import { AppHeader } from '../../../components/AppHeader';
 import { EditarRegistroModal } from '../../../components/EditarRegistroModal';
+import { DataInput } from '../../../components/DataInput';
 import { exportarRelatorioPdf } from '../../../lib/pdf';
 import type { RegistroComSentimento, SentimentoCatalogo } from '../../../lib/types';
 
@@ -166,23 +167,11 @@ export default function Relatorio() {
           <View style={styles.linhaCustom}>
             <View style={styles.inputCustomWrap}>
               <Text style={styles.labelCustom}>De</Text>
-              <TextInput
-                style={styles.inputCustom}
-                value={dataInicioCustom}
-                onChangeText={setDataInicioCustom}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor={colors.textMuted}
-              />
+              <DataInput value={dataInicioCustom} onChange={setDataInicioCustom} />
             </View>
             <View style={styles.inputCustomWrap}>
               <Text style={styles.labelCustom}>Até</Text>
-              <TextInput
-                style={styles.inputCustom}
-                value={dataFimCustom}
-                onChangeText={setDataFimCustom}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor={colors.textMuted}
-              />
+              <DataInput value={dataFimCustom} onChange={setDataFimCustom} />
             </View>
           </View>
         )}
