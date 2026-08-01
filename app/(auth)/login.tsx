@@ -60,7 +60,7 @@ export default function Login() {
       <View style={styles.conteudo}>
         <View style={styles.header}>
           <AnimatedMareLogo size={56} />
-          <Text style={styles.titulo}>maré</Text>
+          <Text style={styles.titulo}>Maré</Text>
           <Text style={styles.subtitulo}>Um espaço calmo para registrar o que você sente.</Text>
         </View>
 

@@ -240,7 +240,9 @@ export default function Relatorio() {
         <FlatList
           data={registros}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RegistroItem registro={item} onEditar={setRegistroEditando} />}
+          renderItem={({ item }) => (
+            <RegistroItem registro={item} onEditar={setRegistroEditando} mostrarData />
+          )}
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           contentContainerStyle={styles.listaConteudo}
           ListHeaderComponent={

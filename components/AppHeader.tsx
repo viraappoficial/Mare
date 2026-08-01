@@ -6,7 +6,7 @@ export function AppHeader() {
   return (
     <View style={styles.header}>
       <AnimatedMareLogo size={24} />
-      <Text style={styles.wordmark}>maré</Text>
+      <Text style={styles.wordmark}>Maré</Text>
     </View>
   );
 }
