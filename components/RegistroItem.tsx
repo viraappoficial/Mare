@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radii, spacing } from '../lib/theme';
 import type { RegistroComSentimento } from '../lib/types';
 
@@ -8,20 +9,35 @@ function formatarHora(iso: string) {
 }
 
 export function RegistroItem({ registro }: { registro: RegistroComSentimento }) {
+  const [expandido, setExpandido] = useState(false);
   const cor = registro.sentimentos_catalogo?.cor ?? colors.accent;
   const nome = registro.sentimentos_catalogo?.nome ?? 'Sentimento';
+  const temTexto = !!registro.descricao;
 
   return (
-    <View style={styles.linha}>
+    <Pressable
+      style={styles.linha}
+      onPress={() => temTexto && setExpandido((v) => !v)}
+      disabled={!temTexto}
+    >
       <View style={[styles.barra, { backgroundColor: cor }]} />
       <View style={styles.conteudo}>
         <View style={styles.topo}>
           <Text style={[styles.nome, { color: cor }]}>{nome}</Text>
-          <Text style={styles.hora}>{formatarHora(registro.sentido_em)}</Text>
+          <View style={styles.topoDireita}>
+            <Text style={styles.hora}>{formatarHora(registro.sentido_em)}</Text>
+            {temTexto && (
+              <Text style={styles.seta}>{expandido ? '▲' : '▼'}</Text>
+            )}
+          </View>
         </View>
-        {!!registro.descricao && <Text style={styles.texto}>{registro.descricao}</Text>}
+        {temTexto && (
+          <Text style={styles.texto} numberOfLines={expandido ? undefined : 2}>
+            {registro.descricao}
+          </Text>
+        )}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -43,7 +59,9 @@ const styles = StyleSheet.create({
   },
   conteudo: { flex: 1, gap: 2 },
   topo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  topoDireita: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
   nome: { fontFamily: fonts.bodySemiBold, fontSize: 13 },
   hora: { fontFamily: fonts.mono, fontSize: 11, color: colors.textMuted },
+  seta: { fontSize: 9, color: colors.textMuted },
   texto: { fontFamily: fonts.body, fontSize: 12.5, color: colors.textMuted, lineHeight: 18 },
 });

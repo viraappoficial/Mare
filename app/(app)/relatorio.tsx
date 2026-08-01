@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
 import { RegistroItem } from '../../components/RegistroItem';
+import { exportarRelatorioPdf } from '../../lib/pdf';
 import type { RegistroComSentimento } from '../../lib/types';
 
 type Periodo = 'semana' | 'mes' | 'tudo';
@@ -27,6 +28,7 @@ export default function Relatorio() {
   const [periodo, setPeriodo] = useState<Periodo>('semana');
   const [registros, setRegistros] = useState<RegistroComSentimento[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [exportando, setExportando] = useState(false);
 
   const carregar = useCallback(async (p: Periodo) => {
     setCarregando(true);
@@ -60,10 +62,34 @@ export default function Relatorio() {
     return { lista, total: registros.length, maisFrequente: lista[0] ?? null };
   }, [registros]);
 
+  const periodoLabel = OPCOES.find((o) => o.chave === periodo)?.rotulo ?? '';
+
+  async function exportarPdf() {
+    setExportando(true);
+    try {
+      await exportarRelatorioPdf(registros, resumo, periodoLabel);
+    } finally {
+      setExportando(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.titulo}>Relatório</Text>
+        <View style={styles.tituloLinha}>
+          <Text style={styles.titulo}>Relatório</Text>
+          <Pressable
+            style={styles.botaoPdf}
+            onPress={exportarPdf}
+            disabled={exportando || registros.length === 0}
+          >
+            {exportando ? (
+              <ActivityIndicator color={colors.accent} size="small" />
+            ) : (
+              <Text style={styles.botaoPdfTexto}>Exportar PDF</Text>
+            )}
+          </Pressable>
+        </View>
         <View style={styles.opcoes}>
           {OPCOES.map((o) => (
             <Pressable
@@ -131,7 +157,24 @@ export default function Relatorio() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  titulo: { fontFamily: fonts.headingBold, fontSize: 20, color: colors.text, marginBottom: spacing.md },
+  tituloLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  titulo: { fontFamily: fonts.headingBold, fontSize: 20, color: colors.text },
+  botaoPdf: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.full,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+    minWidth: 96,
+    alignItems: 'center',
+  },
+  botaoPdfTexto: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.accent },
   opcoes: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   opcao: {
     paddingHorizontal: spacing.md,

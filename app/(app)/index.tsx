@@ -17,6 +17,7 @@ import { useAuth } from '../../lib/auth-context';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
 import { SentimentoChip } from '../../components/SentimentoChip';
 import { RegistroItem } from '../../components/RegistroItem';
+import { NovoSentimentoForm } from '../../components/NovoSentimentoForm';
 import type { RegistroComSentimento, SentimentoCatalogo } from '../../lib/types';
 
 function inicioDoDia() {
@@ -34,6 +35,7 @@ export default function Hoje() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [atualizando, setAtualizando] = useState(false);
+  const [criandoSentimento, setCriandoSentimento] = useState(false);
 
   const carregarSentimentos = useCallback(async () => {
     const { data } = await supabase
@@ -77,6 +79,20 @@ export default function Hoje() {
     }
   }
 
+  async function criarSentimento(nome: string, cor: string) {
+    if (!session) return;
+    const { data, error } = await supabase
+      .from('sentimentos_catalogo')
+      .insert({ nome, cor, usuario_id: session.user.id })
+      .select()
+      .single();
+    if (!error && data) {
+      await carregarSentimentos();
+      setSelecionado(data as SentimentoCatalogo);
+      setCriandoSentimento(false);
+    }
+  }
+
   async function atualizar() {
     setAtualizando(true);
     await carregarRegistrosDeHoje();
@@ -117,10 +133,31 @@ export default function Hoje() {
                     nome={s.nome}
                     cor={s.cor}
                     ativo={selecionado?.id === s.id}
-                    onPress={() => setSelecionado(s)}
+                    onPress={() => {
+                      setCriandoSentimento(false);
+                      setSelecionado(s);
+                    }}
                   />
                 ))}
+                <SentimentoChip
+                  nome="+ Novo"
+                  cor={colors.textMuted}
+                  ativo={criandoSentimento}
+                  onPress={() => {
+                    setSelecionado(null);
+                    setCriandoSentimento((v) => !v);
+                  }}
+                />
               </View>
+
+              {criandoSentimento && (
+                <View style={styles.formulario}>
+                  <NovoSentimentoForm
+                    onCancelar={() => setCriandoSentimento(false)}
+                    onCriar={criarSentimento}
+                  />
+                </View>
+              )}
 
               {selecionado && (
                 <View style={styles.formulario}>
