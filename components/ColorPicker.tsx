@@ -44,7 +44,10 @@ export function ColorPicker({ value, onChange }: Props) {
   const svResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => lidarSv(e.nativeEvent.locationX, e.nativeEvent.locationY),
       onPanResponderMove: (e) => lidarSv(e.nativeEvent.locationX, e.nativeEvent.locationY),
     })
@@ -53,7 +56,10 @@ export function ColorPicker({ value, onChange }: Props) {
   const hueResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponderCapture: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => lidarHue(e.nativeEvent.locationX),
       onPanResponderMove: (e) => lidarHue(e.nativeEvent.locationX),
     })
@@ -74,7 +80,7 @@ export function ColorPicker({ value, onChange }: Props) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.svArea} {...svResponder.panHandlers}>
+      <View style={[styles.svArea, styles.semGestoDoNavegador]} {...svResponder.panHandlers}>
         <LinearGradient
           colors={['#FFFFFF', corPura]}
           start={{ x: 0, y: 0 }}
@@ -100,7 +106,7 @@ export function ColorPicker({ value, onChange }: Props) {
         />
       </View>
 
-      <View style={styles.hueArea} {...hueResponder.panHandlers}>
+      <View style={[styles.hueArea, styles.semGestoDoNavegador]} {...hueResponder.panHandlers}>
         <LinearGradient
           colors={HUE_CORES}
           start={{ x: 0, y: 0 }}
@@ -124,6 +130,9 @@ export function ColorPicker({ value, onChange }: Props) {
 
 const styles = StyleSheet.create({
   container: { gap: 14, alignItems: 'center' },
+  // @ts-expect-error touchAction é uma propriedade só do react-native-web,
+  // necessária pra impedir o navegador de rolar a tela ao arrastar no seletor.
+  semGestoDoNavegador: { touchAction: 'none' },
   svArea: {
     width: SV_SIZE,
     height: SV_SIZE,

@@ -16,14 +16,26 @@ function paraHoraInput(iso: string) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function hojeInput() {
+  return paraDataInput(new Date().toISOString());
+}
+
 type Props = {
   registro: RegistroComSentimento | null;
   sentimentos: SentimentoCatalogo[];
   onFechar: () => void;
   onSalvar: (id: string, sentimentoId: string, sentidoEm: string) => Promise<void>;
+  /** Quando true (tela Hoje), trava a data em hoje — só a hora pode mudar. */
+  restringirAoDiaDeHoje?: boolean;
 };
 
-export function EditarRegistroModal({ registro, sentimentos, onFechar, onSalvar }: Props) {
+export function EditarRegistroModal({
+  registro,
+  sentimentos,
+  onFechar,
+  onSalvar,
+  restringirAoDiaDeHoje,
+}: Props) {
   const [sentimentoId, setSentimentoId] = useState<string | null>(null);
   const [data, setData] = useState('');
   const [hora, setHora] = useState('');
@@ -34,13 +46,19 @@ export function EditarRegistroModal({ registro, sentimentos, onFechar, onSalvar 
   if (registro && registro.id !== registroAtual) {
     setRegistroAtual(registro.id);
     setSentimentoId(registro.sentimento_id);
-    setData(paraDataInput(registro.sentido_em));
+    setData(restringirAoDiaDeHoje ? hojeInput() : paraDataInput(registro.sentido_em));
     setHora(paraHoraInput(registro.sentido_em));
     setErro(null);
   }
 
   async function salvar() {
     if (!registro || !sentimentoId) return;
+
+    if (restringirAoDiaDeHoje && data !== hojeInput()) {
+      setErro('Aqui é a tela de Hoje — a data fica travada em hoje.');
+      return;
+    }
+
     const dataHora = new Date(`${data}T${hora}:00`);
     if (Number.isNaN(dataHora.getTime())) {
       setErro('Data ou hora inválida.');
@@ -72,21 +90,29 @@ export function EditarRegistroModal({ registro, sentimentos, onFechar, onSalvar 
 
           <Text style={styles.label}>Quando senti</Text>
           <View style={styles.linhaDataHora}>
-            <TextInput
-              style={[styles.input, styles.inputData]}
-              value={data}
-              onChangeText={setData}
-              placeholder="AAAA-MM-DD"
-              placeholderTextColor={colors.textMuted}
-            />
-            <TextInput
-              style={[styles.input, styles.inputHora]}
-              value={hora}
-              onChangeText={setHora}
-              placeholder="HH:MM"
-              placeholderTextColor={colors.textMuted}
-            />
+            <View style={styles.inputWrap}>
+              <TextInput
+                style={[styles.input, restringirAoDiaDeHoje && styles.inputTravado]}
+                value={data}
+                onChangeText={setData}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor={colors.textMuted}
+                editable={!restringirAoDiaDeHoje}
+              />
+            </View>
+            <View style={[styles.inputWrap, styles.inputWrapHora]}>
+              <TextInput
+                style={styles.input}
+                value={hora}
+                onChangeText={setHora}
+                placeholder="HH:MM"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
           </View>
+          {restringirAoDiaDeHoje && (
+            <Text style={styles.dica}>Na tela Hoje só dá pra ajustar o horário — a data fica em hoje.</Text>
+          )}
 
           {erro && <Text style={styles.erro}>{erro}</Text>}
 
@@ -129,11 +155,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     padding: spacing.lg,
     gap: spacing.sm + 2,
+    overflow: 'hidden',
   },
   titulo: { fontFamily: fonts.headingBold, fontSize: 17, color: colors.text, marginBottom: spacing.xs },
   label: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.textMuted, marginTop: spacing.xs },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   linhaDataHora: { flexDirection: 'row', gap: spacing.sm },
+  inputWrap: { flex: 1.4, minWidth: 0 },
+  inputWrapHora: { flex: 1 },
   input: {
     backgroundColor: colors.bg,
     borderWidth: 1,
@@ -144,9 +173,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fonts.mono,
     fontSize: 15,
+    minWidth: 0,
+    width: '100%',
   },
-  inputData: { flex: 1.4 },
-  inputHora: { flex: 1 },
+  inputTravado: { color: colors.textMuted, opacity: 0.6 },
+  dica: { fontFamily: fonts.body, fontSize: 11, color: colors.textMuted, marginTop: -spacing.xs },
   erro: { fontFamily: fonts.body, fontSize: 12, color: '#F0644B' },
   acoes: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
   botaoCancelar: {

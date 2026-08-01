@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 import { colors, fonts, radii, spacing } from '../../lib/theme';
@@ -9,21 +9,34 @@ import { EditarRegistroModal } from '../../components/EditarRegistroModal';
 import { exportarRelatorioPdf } from '../../lib/pdf';
 import type { RegistroComSentimento, SentimentoCatalogo } from '../../lib/types';
 
-type Periodo = 'semana' | 'mes' | 'tudo';
+type Periodo = 'semana' | 'mes' | 'tudo' | 'personalizado';
 
 const OPCOES: { chave: Periodo; rotulo: string }[] = [
   { chave: 'semana', rotulo: 'Últimos 7 dias' },
   { chave: 'mes', rotulo: 'Últimos 30 dias' },
   { chave: 'tudo', rotulo: 'Tudo' },
+  { chave: 'personalizado', rotulo: 'Personalizado' },
 ];
 
 function dataInicial(periodo: Periodo) {
-  if (periodo === 'tudo') return null;
+  if (periodo === 'tudo' || periodo === 'personalizado') return null;
   const dias = periodo === 'semana' ? 7 : 30;
   const d = new Date();
   d.setDate(d.getDate() - dias);
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
+}
+
+function hojeInput() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function formatarDataBr(input: string) {
+  const [ano, mes, dia] = input.split('-');
+  if (!ano || !mes || !dia) return input;
+  return `${dia}/${mes}/${ano}`;
 }
 
 export default function Relatorio() {
@@ -33,21 +46,34 @@ export default function Relatorio() {
   const [exportando, setExportando] = useState(false);
   const [sentimentos, setSentimentos] = useState<SentimentoCatalogo[]>([]);
   const [registroEditando, setRegistroEditando] = useState<RegistroComSentimento | null>(null);
+  const [dataInicioCustom, setDataInicioCustom] = useState(hojeInput());
+  const [dataFimCustom, setDataFimCustom] = useState(hojeInput());
 
-  const carregar = useCallback(async (p: Periodo) => {
-    setCarregando(true);
-    let query = supabase
-      .from('registros')
-      .select('*, sentimentos_catalogo(*)')
-      .order('sentido_em', { ascending: false });
+  const carregar = useCallback(
+    async (p: Periodo) => {
+      if (p === 'personalizado' && (!dataInicioCustom || !dataFimCustom)) return;
 
-    const inicio = dataInicial(p);
-    if (inicio) query = query.gte('sentido_em', inicio);
+      setCarregando(true);
+      let query = supabase
+        .from('registros')
+        .select('*, sentimentos_catalogo(*)')
+        .order('sentido_em', { ascending: false });
 
-    const { data } = await query;
-    setRegistros((data as RegistroComSentimento[]) ?? []);
-    setCarregando(false);
-  }, []);
+      if (p === 'personalizado') {
+        query = query
+          .gte('sentido_em', new Date(`${dataInicioCustom}T00:00:00`).toISOString())
+          .lte('sentido_em', new Date(`${dataFimCustom}T23:59:59.999`).toISOString());
+      } else {
+        const inicio = dataInicial(p);
+        if (inicio) query = query.gte('sentido_em', inicio);
+      }
+
+      const { data } = await query;
+      setRegistros((data as RegistroComSentimento[]) ?? []);
+      setCarregando(false);
+    },
+    [dataInicioCustom, dataFimCustom]
+  );
 
   useEffect(() => {
     carregar(periodo);
@@ -85,7 +111,10 @@ export default function Relatorio() {
     return { lista, total: registros.length, maisFrequente: lista[0] ?? null };
   }, [registros]);
 
-  const periodoLabel = OPCOES.find((o) => o.chave === periodo)?.rotulo ?? '';
+  const periodoLabel =
+    periodo === 'personalizado'
+      ? `${formatarDataBr(dataInicioCustom)} – ${formatarDataBr(dataFimCustom)}`
+      : OPCOES.find((o) => o.chave === periodo)?.rotulo ?? '';
 
   async function exportarPdf() {
     setExportando(true);
@@ -132,6 +161,31 @@ export default function Relatorio() {
             </Pressable>
           ))}
         </View>
+
+        {periodo === 'personalizado' && (
+          <View style={styles.linhaCustom}>
+            <View style={styles.inputCustomWrap}>
+              <Text style={styles.labelCustom}>De</Text>
+              <TextInput
+                style={styles.inputCustom}
+                value={dataInicioCustom}
+                onChangeText={setDataInicioCustom}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={styles.inputCustomWrap}>
+              <Text style={styles.labelCustom}>Até</Text>
+              <TextInput
+                style={styles.inputCustom}
+                value={dataFimCustom}
+                onChangeText={setDataFimCustom}
+                placeholder="AAAA-MM-DD"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
+        )}
       </View>
 
       {carregando ? (
@@ -206,7 +260,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   botaoPdfTexto: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.accent },
-  opcoes: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  opcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
+  linhaCustom: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
+  inputCustomWrap: { flex: 1, minWidth: 0, gap: 4 },
+  labelCustom: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.textMuted },
+  inputCustom: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+    color: colors.text,
+    fontFamily: fonts.mono,
+    fontSize: 14,
+    minWidth: 0,
+    width: '100%',
+  },
   opcao: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,

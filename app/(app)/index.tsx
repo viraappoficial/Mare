@@ -28,6 +28,12 @@ function inicioDoDia() {
   return d.toISOString();
 }
 
+function fimDoDia() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d.toISOString();
+}
+
 export default function Hoje() {
   const { session } = useAuth();
   const [sentimentos, setSentimentos] = useState<SentimentoCatalogo[]>([]);
@@ -53,6 +59,7 @@ export default function Hoje() {
       .from('registros')
       .select('*, sentimentos_catalogo(*)')
       .gte('sentido_em', inicioDoDia())
+      .lte('sentido_em', fimDoDia())
       .order('sentido_em', { ascending: false });
     setRegistros((data as RegistroComSentimento[]) ?? []);
   }, []);
@@ -208,6 +215,7 @@ export default function Hoje() {
           sentimentos={sentimentos}
           onFechar={() => setRegistroEditando(null)}
           onSalvar={salvarEdicaoRegistro}
+          restringirAoDiaDeHoje
         />
       </SafeAreaView>
     </KeyboardAvoidingView>
