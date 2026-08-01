@@ -8,6 +8,13 @@ import { AppHeader } from '../../../components/AppHeader';
 import { EditarRegistroModal } from '../../../components/EditarRegistroModal';
 import { DataInput } from '../../../components/DataInput';
 import { exportarRelatorioPdf } from '../../../lib/pdf';
+import {
+  calcularSequencia,
+  calcularTendencia,
+  padraoPorDiaDaSemana,
+  padraoPorTurno,
+  type Tendencia,
+} from '../../../lib/insights';
 import type { RegistroComSentimento, SentimentoCatalogo } from '../../../lib/types';
 
 type Periodo = 'semana' | 'mes' | 'tudo' | 'personalizado';
@@ -40,6 +47,28 @@ function formatarDataBr(input: string) {
   return `${dia}/${mes}/${ano}`;
 }
 
+function periodoAnterior(p: Periodo, dataInicioCustom: string, dataFimCustom: string) {
+  if (p === 'tudo') return null;
+
+  if (p === 'personalizado') {
+    const inicio = new Date(`${dataInicioCustom}T00:00:00`);
+    const fim = new Date(`${dataFimCustom}T23:59:59.999`);
+    const duracaoMs = fim.getTime() - inicio.getTime();
+    if (duracaoMs < 0) return null;
+    const fimAnterior = new Date(inicio.getTime() - 1);
+    const inicioAnterior = new Date(fimAnterior.getTime() - duracaoMs);
+    return { inicio: inicioAnterior.toISOString(), fim: fimAnterior.toISOString() };
+  }
+
+  const dias = p === 'semana' ? 7 : 30;
+  const fimAnterior = new Date();
+  fimAnterior.setDate(fimAnterior.getDate() - dias);
+  fimAnterior.setHours(0, 0, 0, 0);
+  const inicioAnterior = new Date(fimAnterior);
+  inicioAnterior.setDate(inicioAnterior.getDate() - dias);
+  return { inicio: inicioAnterior.toISOString(), fim: fimAnterior.toISOString() };
+}
+
 export default function Relatorio() {
   const [periodo, setPeriodo] = useState<Periodo>('semana');
   const [registros, setRegistros] = useState<RegistroComSentimento[]>([]);
@@ -49,6 +78,8 @@ export default function Relatorio() {
   const [registroEditando, setRegistroEditando] = useState<RegistroComSentimento | null>(null);
   const [dataInicioCustom, setDataInicioCustom] = useState(hojeInput());
   const [dataFimCustom, setDataFimCustom] = useState(hojeInput());
+  const [sequencia, setSequencia] = useState(0);
+  const [tendencia, setTendencia] = useState<Tendencia | null>(null);
 
   const carregar = useCallback(
     async (p: Periodo) => {
@@ -88,6 +119,29 @@ export default function Relatorio() {
       .then(({ data }) => setSentimentos(data ?? []));
   }, []);
 
+  useEffect(() => {
+    supabase
+      .from('registros')
+      .select('sentido_em')
+      .order('sentido_em', { ascending: false })
+      .limit(400)
+      .then(({ data }) => setSequencia(calcularSequencia((data ?? []).map((r) => r.sentido_em))));
+  }, [registros.length]);
+
+  useEffect(() => {
+    const anterior = periodoAnterior(periodo, dataInicioCustom, dataFimCustom);
+    if (!anterior) {
+      setTendencia(null);
+      return;
+    }
+    supabase
+      .from('registros')
+      .select('id', { count: 'exact', head: true })
+      .gte('sentido_em', anterior.inicio)
+      .lte('sentido_em', anterior.fim)
+      .then(({ count }) => setTendencia(calcularTendencia(registros.length, count ?? 0)));
+  }, [periodo, dataInicioCustom, dataFimCustom, registros.length]);
+
   async function salvarEdicaoRegistro(id: string, sentimentoId: string, sentidoEm: string) {
     const { error } = await supabase
       .from('registros')
@@ -112,6 +166,9 @@ export default function Relatorio() {
     return { lista, total: registros.length, maisFrequente: lista[0] ?? null };
   }, [registros]);
 
+  const turno = useMemo(() => padraoPorTurno(registros), [registros]);
+  const diaSemana = useMemo(() => padraoPorDiaDaSemana(registros), [registros]);
+
   const periodoLabel =
     periodo === 'personalizado'
       ? `${formatarDataBr(dataInicioCustom)} – ${formatarDataBr(dataFimCustom)}`
@@ -120,7 +177,7 @@ export default function Relatorio() {
   async function exportarPdf() {
     setExportando(true);
     try {
-      await exportarRelatorioPdf(registros, resumo, periodoLabel);
+      await exportarRelatorioPdf(registros, resumo, periodoLabel, { sequencia, tendencia, turno, diaSemana });
     } finally {
       setExportando(false);
     }
@@ -187,29 +244,67 @@ export default function Relatorio() {
           ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
           contentContainerStyle={styles.listaConteudo}
           ListHeaderComponent={
-            registros.length > 0 ? (
-              <View style={styles.resumo}>
-                <Text style={styles.resumoTotal}>
-                  {resumo.total} {resumo.total === 1 ? 'registro' : 'registros'}
-                  {resumo.maisFrequente ? ` · mais frequente: ${resumo.maisFrequente.nome}` : ''}
-                </Text>
-                <View style={styles.barras}>
-                  {resumo.lista.map((s) => (
-                    <View key={s.nome} style={styles.barraLinha}>
-                      <Text style={[styles.barraNome, { color: s.cor }]}>{s.nome}</Text>
-                      <View style={styles.barraFundo}>
-                        <View
-                          style={[
-                            styles.barraPreenchida,
-                            { backgroundColor: s.cor, width: `${(s.total / resumo.total) * 100}%` },
-                          ]}
-                        />
+            registros.length > 0 || sequencia > 0 ? (
+              <>
+                {(sequencia > 0 || tendencia || turno || diaSemana) && (
+                  <View style={styles.insights}>
+                    {sequencia > 0 && (
+                      <View style={styles.insightCard}>
+                        <Text style={styles.insightValor}>{sequencia}</Text>
+                        <Text style={styles.insightLabel}>
+                          {sequencia === 1 ? 'dia seguido' : 'dias seguidos'}
+                        </Text>
                       </View>
-                      <Text style={styles.barraTotal}>{s.total}</Text>
+                    )}
+                    {tendencia && (
+                      <View style={styles.insightCard}>
+                        <Text style={styles.insightValor}>
+                          {tendencia.direcao === 'alta' ? '↑' : tendencia.direcao === 'baixa' ? '↓' : '='}
+                          {tendencia.delta !== null ? ` ${Math.abs(tendencia.delta)}%` : ''}
+                        </Text>
+                        <Text style={styles.insightLabel}>vs período anterior</Text>
+                      </View>
+                    )}
+                    {turno && (
+                      <View style={styles.insightCard}>
+                        <Text style={styles.insightValor}>{turno.porcentagem}%</Text>
+                        <Text style={styles.insightLabel}>registros de {turno.turno}</Text>
+                      </View>
+                    )}
+                    {diaSemana && (
+                      <View style={styles.insightCard}>
+                        <Text style={[styles.insightValor, styles.insightValorTexto]}>{diaSemana.dia}</Text>
+                        <Text style={styles.insightLabel}>dia mais frequente</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {registros.length > 0 && (
+                  <View style={styles.resumo}>
+                    <Text style={styles.resumoTotal}>
+                      {resumo.total} {resumo.total === 1 ? 'registro' : 'registros'}
+                      {resumo.maisFrequente ? ` · mais frequente: ${resumo.maisFrequente.nome}` : ''}
+                    </Text>
+                    <View style={styles.barras}>
+                      {resumo.lista.map((s) => (
+                        <View key={s.nome} style={styles.barraLinha}>
+                          <Text style={[styles.barraNome, { color: s.cor }]}>{s.nome}</Text>
+                          <View style={styles.barraFundo}>
+                            <View
+                              style={[
+                                styles.barraPreenchida,
+                                { backgroundColor: s.cor, width: `${(s.total / resumo.total) * 100}%` },
+                              ]}
+                            />
+                          </View>
+                          <Text style={styles.barraTotal}>{s.total}</Text>
+                        </View>
+                      ))}
                     </View>
-                  ))}
-                </View>
-              </View>
+                  </View>
+                )}
+              </>
             ) : null
           }
           ListEmptyComponent={
@@ -276,6 +371,27 @@ const styles = StyleSheet.create({
   },
   opcaoTexto: { fontFamily: fonts.bodyMedium, fontSize: 12.5, color: colors.textMuted },
   listaConteudo: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl },
+  insights: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
+  insightCard: {
+    flexGrow: 1,
+    minWidth: 92,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.md,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.md,
+    alignItems: 'center',
+    gap: 2,
+  },
+  insightValor: { fontFamily: fonts.headingBold, fontSize: 18, color: colors.accent },
+  insightValorTexto: { fontSize: 14, textTransform: 'capitalize' },
+  insightLabel: {
+    fontFamily: fonts.body,
+    fontSize: 10.5,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
   resumo: {
     backgroundColor: colors.surface,
     borderWidth: 1,

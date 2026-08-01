@@ -2,9 +2,17 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { colors } from './theme';
+import type { Tendencia } from './insights';
 import type { RegistroComSentimento } from './types';
 
 type ResumoItem = { nome: string; cor: string; total: number };
+
+type Insights = {
+  sequencia: number;
+  tendencia: Tendencia | null;
+  turno: { turno: string; porcentagem: number } | null;
+  diaSemana: { dia: string; total: number } | null;
+};
 
 function formatarDataLonga(iso: string) {
   const d = new Date(iso);
@@ -37,10 +45,44 @@ function escapeHtml(texto: string) {
 export function buildRelatorioHtml(
   registros: RegistroComSentimento[],
   resumo: { lista: ResumoItem[]; total: number; maisFrequente: ResumoItem | null },
-  periodoLabel: string
+  periodoLabel: string,
+  insights?: Insights
 ) {
   const geradoEm = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const dias = agruparPorDia(registros);
+
+  const cartoesInsight: { valor: string; label: string }[] = [];
+  if (insights?.sequencia) {
+    cartoesInsight.push({
+      valor: String(insights.sequencia),
+      label: insights.sequencia === 1 ? 'dia seguido' : 'dias seguidos',
+    });
+  }
+  if (insights?.tendencia) {
+    const seta = insights.tendencia.direcao === 'alta' ? '↑' : insights.tendencia.direcao === 'baixa' ? '↓' : '=';
+    const pct = insights.tendencia.delta !== null ? ` ${Math.abs(insights.tendencia.delta)}%` : '';
+    cartoesInsight.push({ valor: `${seta}${pct}`, label: 'vs período anterior' });
+  }
+  if (insights?.turno) {
+    cartoesInsight.push({ valor: `${insights.turno.porcentagem}%`, label: `registros de ${insights.turno.turno}` });
+  }
+  if (insights?.diaSemana) {
+    cartoesInsight.push({ valor: insights.diaSemana.dia, label: 'dia mais frequente' });
+  }
+
+  const insightsHtml = cartoesInsight.length
+    ? `<div class="insights">
+        ${cartoesInsight
+          .map(
+            (c) => `
+          <div class="insight-card">
+            <p class="insight-valor">${escapeHtml(c.valor)}</p>
+            <p class="insight-label">${escapeHtml(c.label)}</p>
+          </div>`
+          )
+          .join('')}
+      </div>`
+    : '';
 
   const barrasHtml = resumo.lista
     .map(
@@ -174,6 +216,19 @@ export function buildRelatorioHtml(
   .registro-texto { font-size: 12px; color: ${colors.textMuted}; line-height: 1.5; margin: 0; }
 
   .rodape { margin-top: 32px; text-align: center; font-size: 10.5px; color: ${colors.textMuted}; }
+
+  .insights { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  .insight-card {
+    flex: 1;
+    min-width: 110px;
+    background: ${colors.surface};
+    border: 1px solid ${colors.border};
+    border-radius: 14px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+  .insight-valor { font-size: 19px; font-weight: 700; color: ${colors.accent}; margin: 0 0 3px; text-transform: capitalize; }
+  .insight-label { font-size: 10.5px; color: ${colors.textMuted}; margin: 0; }
 </style>
 </head>
 <body>
@@ -189,6 +244,8 @@ export function buildRelatorioHtml(
 
   <h1>Relatório · ${escapeHtml(periodoLabel)}</h1>
   <p class="meta">Gerado em ${geradoEm} · ${registros.length} ${registros.length === 1 ? 'registro' : 'registros'}</p>
+
+  ${insightsHtml}
 
   ${
     resumo.total > 0
@@ -212,9 +269,10 @@ export function buildRelatorioHtml(
 export async function exportarRelatorioPdf(
   registros: RegistroComSentimento[],
   resumo: { lista: ResumoItem[]; total: number; maisFrequente: ResumoItem | null },
-  periodoLabel: string
+  periodoLabel: string,
+  insights?: Insights
 ) {
-  const html = buildRelatorioHtml(registros, resumo, periodoLabel);
+  const html = buildRelatorioHtml(registros, resumo, periodoLabel, insights);
 
   if (Platform.OS === 'web') {
     const janela = window.open('', '_blank');
