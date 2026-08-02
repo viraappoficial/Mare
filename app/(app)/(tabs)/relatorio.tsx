@@ -8,6 +8,7 @@ import { AppHeader } from '../../../components/AppHeader';
 import { EditarRegistroModal } from '../../../components/EditarRegistroModal';
 import { DataInput } from '../../../components/DataInput';
 import { exportarRelatorioPdf } from '../../../lib/pdf';
+import { useAuth } from '../../../lib/auth-context';
 import {
   calcularSequencia,
   calcularTendencia,
@@ -15,7 +16,12 @@ import {
   padraoPorTurno,
   type Tendencia,
 } from '../../../lib/insights';
-import type { RegistroComSentimento, SentimentoCatalogo } from '../../../lib/types';
+import type {
+  EnvioSnapshot,
+  RegistroComSentimento,
+  SentimentoCatalogo,
+  Vinculo,
+} from '../../../lib/types';
 
 type Periodo = 'semana' | 'mes' | 'tudo' | 'personalizado';
 
@@ -70,6 +76,7 @@ function periodoAnterior(p: Periodo, dataInicioCustom: string, dataFimCustom: st
 }
 
 export default function Relatorio() {
+  const { session } = useAuth();
   const [periodo, setPeriodo] = useState<Periodo>('semana');
   const [registros, setRegistros] = useState<RegistroComSentimento[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -80,6 +87,9 @@ export default function Relatorio() {
   const [dataFimCustom, setDataFimCustom] = useState(hojeInput());
   const [sequencia, setSequencia] = useState(0);
   const [tendencia, setTendencia] = useState<Tendencia | null>(null);
+  const [vinculoAtivo, setVinculoAtivo] = useState<Vinculo | null>(null);
+  const [enviandoPsicologo, setEnviandoPsicologo] = useState(false);
+  const [enviadoAgora, setEnviadoAgora] = useState(false);
 
   const carregar = useCallback(
     async (p: Periodo) => {
@@ -118,6 +128,19 @@ export default function Relatorio() {
       .order('nome', { ascending: true })
       .then(({ data }) => setSentimentos(data ?? []));
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    supabase
+      .from('vinculos')
+      .select('*')
+      .eq('paciente_id', session.user.id)
+      .eq('status', 'ativo')
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setVinculoAtivo(data));
+  }, [session]);
 
   useEffect(() => {
     supabase
@@ -183,6 +206,35 @@ export default function Relatorio() {
     }
   }
 
+  async function enviarPsicologo() {
+    if (!vinculoAtivo || registros.length === 0) return;
+    setEnviandoPsicologo(true);
+
+    const snapshot: EnvioSnapshot = {
+      periodoLabel,
+      registros: registros.map((r) => ({
+        nome: r.sentimentos_catalogo?.nome ?? 'Sentimento',
+        cor: r.sentimentos_catalogo?.cor ?? colors.accent,
+        descricao: r.descricao,
+        sentido_em: r.sentido_em,
+      })),
+      resumo: resumo.lista.map((s) => ({ nome: s.nome, cor: s.cor, total: s.total })),
+      total: resumo.total,
+    };
+
+    const { error } = await supabase.from('envios').insert({
+      vinculo_id: vinculoAtivo.id,
+      periodo_label: periodoLabel,
+      snapshot,
+    });
+
+    setEnviandoPsicologo(false);
+    if (!error) {
+      setEnviadoAgora(true);
+      setTimeout(() => setEnviadoAgora(false), 2500);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <AppHeader />
@@ -201,6 +253,23 @@ export default function Relatorio() {
             )}
           </Pressable>
         </View>
+
+        {vinculoAtivo && (
+          <Pressable
+            style={[styles.botaoEnviar, enviadoAgora && styles.botaoEnviarOk]}
+            onPress={enviarPsicologo}
+            disabled={enviandoPsicologo || registros.length === 0}
+          >
+            {enviandoPsicologo ? (
+              <ActivityIndicator color={colors.text} size="small" />
+            ) : (
+              <Text style={[styles.botaoEnviarTexto, enviadoAgora && { color: colors.accent }]}>
+                {enviadoAgora ? 'Enviado ✓' : 'Enviar pro psicólogo(a)'}
+              </Text>
+            )}
+          </Pressable>
+        )}
+
         <View style={styles.opcoes}>
           {OPCOES.map((o) => (
             <Pressable
@@ -346,6 +415,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   botaoPdfTexto: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.accent },
+  botaoEnviar: {
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.reflexao,
+    backgroundColor: `${colors.reflexao}1A`,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  botaoEnviarOk: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  botaoEnviarTexto: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.reflexao },
   opcoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   linhaCustom: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   inputCustomWrap: { flex: 1, minWidth: 0, gap: 4 },

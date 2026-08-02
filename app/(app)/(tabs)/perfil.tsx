@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../lib/auth-context';
 import { usePerfil } from '../../../lib/perfil-context';
 import { colors, fonts, radii, spacing } from '../../../lib/theme';
 import { AppHeader } from '../../../components/AppHeader';
+import { SecaoPaciente } from '../../../components/SecaoPaciente';
+import { SecaoPsicologo } from '../../../components/SecaoPsicologo';
 import type { TipoPerfil } from '../../../lib/types';
 
 export default function Perfil() {
@@ -24,7 +26,7 @@ export default function Perfil() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <AppHeader />
-      <View style={styles.conteudo}>
+      <ScrollView contentContainerStyle={styles.conteudo}>
         <Text style={styles.titulo}>Perfil</Text>
         <Text style={styles.email}>{session?.user.email}</Text>
 
@@ -56,17 +58,19 @@ export default function Perfil() {
           </View>
         </View>
 
+        {perfil?.tipo === 'psicologo' ? <SecaoPsicologo /> : <SecaoPaciente />}
+
         <Pressable style={styles.botao} onPress={() => supabase.auth.signOut()}>
           <Text style={styles.botaoTexto}>Sair</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  conteudo: { padding: spacing.lg, gap: spacing.md },
+  conteudo: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
   titulo: { fontFamily: fonts.headingBold, fontSize: 20, color: colors.text },
   email: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted, marginBottom: spacing.sm },
   secao: { gap: spacing.sm, marginBottom: spacing.md },
