@@ -71,38 +71,95 @@ export type Database = {
           },
         ]
       }
+      foods: {
+        Row: {
+          calories: number
+          carbs_g: number | null
+          category: string
+          fat_g: number | null
+          id: string
+          name: string
+          portion_label: string
+          profile_id: string | null
+          protein_g: number
+        }
+        Insert: {
+          calories: number
+          carbs_g?: number | null
+          category: string
+          fat_g?: number | null
+          id?: string
+          name: string
+          portion_label: string
+          profile_id?: string | null
+          protein_g?: number
+        }
+        Update: {
+          calories?: number
+          carbs_g?: number | null
+          category?: string
+          fat_g?: number | null
+          id?: string
+          name?: string
+          portion_label?: string
+          profile_id?: string | null
+          protein_g?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foods_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meal_logs: {
         Row: {
           calories: number | null
           created_at: string
           date: string
           description: string
+          food_id: string | null
           id: string
           meal_id: string | null
           profile_id: string
           protein_g: number | null
+          quantity: number
         }
         Insert: {
           calories?: number | null
           created_at?: string
           date: string
           description: string
+          food_id?: string | null
           id?: string
           meal_id?: string | null
           profile_id: string
           protein_g?: number | null
+          quantity?: number
         }
         Update: {
           calories?: number | null
           created_at?: string
           date?: string
           description?: string
+          food_id?: string | null
           id?: string
           meal_id?: string | null
           profile_id?: string
           protein_g?: number | null
+          quantity?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "meal_logs_food_id_fkey"
+            columns: ["food_id"]
+            isOneToOne: false
+            referencedRelation: "foods"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "meal_logs_meal_id_fkey"
             columns: ["meal_id"]

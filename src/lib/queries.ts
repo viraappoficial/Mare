@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { calculateBMR, calculateTDEE, calculateCalorieTarget, calculateProteinTarget, calculateFatTarget, calculateCarbTarget, calculateWaterTarget, calculateWaterTargetTrainingDay } from "@/lib/calculations";
-import type { ActivityLevel, Meal, Sex, WeightEntry } from "@/types";
+import type { ActivityLevel, Sex, WeightEntry } from "@/types";
 
 type TypedClient = SupabaseClient<Database>;
 
@@ -18,6 +18,7 @@ export type MeasurementRow = Database["public"]["Tables"]["measurements"]["Row"]
 export type MealRow = Database["public"]["Tables"]["meals"]["Row"];
 export type MealLogRow = Database["public"]["Tables"]["meal_logs"]["Row"];
 export type WorkoutLogRow = Database["public"]["Tables"]["workout_logs"]["Row"];
+export type FoodRow = Database["public"]["Tables"]["foods"]["Row"];
 
 export const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   sedentario: 1.2,
@@ -270,19 +271,6 @@ export async function getDefaultMeals(db: TypedClient) {
   return data;
 }
 
-/** Adapta uma linha de `meals` (snake_case do banco) para o tipo `Meal` usado pelos componentes */
-export function toMeal(row: MealRow): Meal {
-  return {
-    id: row.id,
-    time: row.time,
-    title: row.title,
-    items: row.items,
-    approxCalories: row.approx_calories ?? undefined,
-    approxProteinG: row.approx_protein_g ?? undefined,
-    optional: row.optional,
-  };
-}
-
 export async function getMealLogsForDate(db: TypedClient, profileId: string, date: string) {
   const { data, error } = await db
     .from("meal_logs")
@@ -321,6 +309,52 @@ export async function insertMealLog(
     description: entry.description,
     calories: entry.calories ?? null,
     protein_g: entry.proteinG ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function deleteMealLog(db: TypedClient, id: string) {
+  const { error } = await db.from("meal_logs").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Banco de alimentos (padrão + próprios) usado pra montar o cardápio do dia */
+export async function getFoods(db: TypedClient) {
+  const { data, error } = await db
+    .from("foods")
+    .select("*")
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+const foodCategoryLabels: Record<string, string> = {
+  proteina: "Proteínas",
+  carboidrato: "Carboidratos",
+  outro: "Outros",
+};
+
+export function foodCategoryLabel(category: string) {
+  return foodCategoryLabels[category] ?? category;
+}
+
+/** Registra um alimento do banco no cardápio de hoje, já multiplicando pela quantidade escolhida */
+export async function insertMealLogFromFood(
+  db: TypedClient,
+  profileId: string,
+  date: string,
+  food: FoodRow,
+  quantity: number
+) {
+  const { error } = await db.from("meal_logs").insert({
+    profile_id: profileId,
+    date,
+    food_id: food.id,
+    quantity,
+    description: quantity === 1 ? food.name : `${food.name} (×${quantity})`,
+    calories: Math.round(food.calories * quantity),
+    protein_g: Math.round(food.protein_g * quantity * 10) / 10,
   });
   if (error) throw error;
 }
