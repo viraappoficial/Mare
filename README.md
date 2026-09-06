@@ -5,6 +5,10 @@ de alimentação, treino e emagrecimento. Roda 100% com dados mockados, sem
 backend — pensado para depois ser conectado ao Supabase, versionado no GitHub
 e publicado na Vercel.
 
+🔗 **Publicado em:** https://viraappoficial.github.io/Mare/ (atualiza
+automaticamente a cada push na branch principal, via GitHub Pages — ver
+seção abaixo).
+
 ## Stack
 
 - **Next.js 14** (App Router) + **TypeScript**
@@ -112,6 +116,31 @@ A estrutura já foi pensada para isso, mas **nada está conectado ainda**:
    `src/types/index.ts` para não precisar reescrever os componentes.
 5. Autenticação real (login da Fernanda) ainda não existe — é o próximo
    passo natural depois do banco de dados estar conectado.
+
+## Publicação automática no GitHub Pages
+
+Todo push na branch principal roda `.github/workflows/deploy-pages.yml`, que
+builda o site como export estático do Next.js e publica em
+https://viraappoficial.github.io/Mare/.
+
+Detalhes técnicos (em `next.config.mjs`):
+
+- `output: "export"` gera HTML estático em `out/` — sem servidor Node, cada
+  rota vira uma pasta com `index.html` (ex: `out/hoje/index.html`).
+- `basePath`/`assetPrefix: "/Mare"` fazem o site funcionar a partir do
+  subcaminho `/Mare` (nome do repositório) — só é aplicado quando a variável
+  de ambiente `GITHUB_PAGES_BUILD=true` está definida (setada pelo próprio
+  workflow), então `npm run build` local ou na Vercel continua servindo a
+  partir da raiz normalmente.
+- `images: { unoptimized: true }` porque a otimização de imagem do Next
+  precisa de servidor, indisponível em export estático (o app não usa
+  `next/image` hoje, mas a opção já fica pronta).
+
+Se quiser rodar esse build de exportação localmente:
+
+```bash
+GITHUB_PAGES_BUILD=true npm run build   # gera a pasta out/
+```
 
 ## Como publicar na Vercel
 
