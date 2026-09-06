@@ -28,23 +28,19 @@ jobs:
 
       - run: npm ci
 
-      - name: Exportar build web
+      - name: Build export estático do Next.js
         env:
-          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
-        run: npx expo export --platform web
+          GITHUB_PAGES_BUILD: "true"
+        run: npm run build
 
-      - name: Injetar tags de PWA/zoom no index.html
-        run: node scripts/inject-pwa-html.js
-
-      - name: Fallback SPA (404 -> index)
-        run: cp dist/index.html dist/404.html
+      - name: Evitar que o Jekyll do GitHub Pages ignore pastas com "_"
+        run: touch out/.nojekyll
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: out
 
   deploy:
     needs: build
