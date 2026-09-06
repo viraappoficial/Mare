@@ -1,13 +1,12 @@
 /**
- * Tipos do domínio do app.
+ * Tipos do domínio do app — usados pelos componentes (props em camelCase).
  *
- * Cada interface aqui corresponde a uma futura tabela no Supabase (Postgres).
- * Nesta etapa (mockup, sem backend) esses tipos são usados apenas para tipar
- * os dados mockados em `src/data/mockFernanda.ts`. Quando o Supabase entrar,
- * o formato de cada linha retornada pelas queries deve bater com estes tipos
- * (idealmente gerados via `supabase gen types typescript`).
+ * Cada interface aqui corresponde a uma tabela real no Supabase (ver
+ * `src/types/database.ts`, gerado do schema). As funções em
+ * `src/lib/queries.ts` fazem a ponte: leem as tabelas (snake_case) e devolvem
+ * dados nesses formatos (camelCase) para as páginas.
  *
- * Mapeamento tipo -> tabela futura:
+ * Mapeamento tipo -> tabela:
  *   Profile        -> profiles
  *   Goal           -> user_goals
  *   DailyLog       -> daily_logs

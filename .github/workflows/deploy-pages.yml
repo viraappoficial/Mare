@@ -31,6 +31,8 @@ jobs:
       - name: Build export estático do Next.js
         env:
           GITHUB_PAGES_BUILD: "true"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Evitar que o Jekyll do GitHub Pages ignore pastas com "_"

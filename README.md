@@ -1,9 +1,8 @@
 # Fernanda Fit
 
-Mockup visual completo e navegável de um app mobile-first para acompanhamento
-de alimentação, treino e emagrecimento. Roda 100% com dados mockados, sem
-backend — pensado para depois ser conectado ao Supabase, versionado no GitHub
-e publicado na Vercel.
+App mobile-first para acompanhamento de alimentação, treino e emagrecimento.
+Login com e-mail/senha, cada pessoa com seus próprios dados (Supabase +
+RLS), publicado automaticamente no GitHub Pages.
 
 🔗 **Publicado em:** https://viraappoficial.github.io/Mare/ (atualiza
 automaticamente a cada push na branch principal, via GitHub Pages — ver
@@ -11,20 +10,24 @@ seção abaixo).
 
 ## Stack
 
-- **Next.js 14** (App Router) + **TypeScript**
-- **Tailwind CSS**
-- Componentes próprios (sem dependência de biblioteca de UI)
-- Dados 100% mockados nesta etapa — nenhuma chamada de rede
+- **Next.js 14** (App Router) + **TypeScript**, exportado como site estático
+  (`output: "export"`) — sem servidor Node, tudo roda no navegador.
+- **Tailwind CSS**, componentes próprios (sem dependência de biblioteca de UI).
+- **Supabase**: Postgres (10 tabelas, todas com RLS por usuária) + Auth
+  (e-mail/senha, sessão em `localStorage`, já que o site é estático).
 
 ## Como rodar
 
 ```bash
 npm install
+cp .env.example .env.local   # preencha com a URL e anon key do seu projeto Supabase
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000). A primeira tela é o
-Dashboard (Início).
+Abra [http://localhost:3000](http://localhost:3000). A primeira tela pede
+login — crie uma conta (a confirmação por e-mail pode estar ativada por
+padrão no seu projeto Supabase; veja "Autenticação" abaixo) e depois preencha
+o onboarding para gerar seu perfil e metas automaticamente.
 
 Outros comandos úteis:
 
@@ -41,87 +44,104 @@ design. O layout também funciona em desktop, mas é secundário.
 
 ```
 src/
-  app/                  # rotas (App Router)
-    page.tsx            # Dashboard / Início (rota "/")
-    hoje/page.tsx        # Registro rápido do dia
-    alimentacao/page.tsx # Resumo, plano do dia e trocas de alimentos
-    treinos/page.tsx     # Semana de treinos + cardio complementar
-    evolucao/page.tsx    # Peso, gráfico, medidas e resumo semanal
-    perfil/page.tsx      # Dados da Fernanda + cálculos automáticos
-    layout.tsx           # layout raiz (fonte, viewport, <html>/<body>)
-    globals.css          # Tailwind + tokens visuais globais
+  app/
+    login/page.tsx        # entrar / criar conta (Supabase Auth)
+    onboarding/page.tsx    # 1ª vez: cria profile + user_goals a partir dos dados iniciais
+    page.tsx               # Dashboard / Início (rota "/")
+    hoje/page.tsx           # Registro rápido do dia
+    alimentacao/page.tsx    # Resumo, plano do dia (com registro rápido) e trocas
+    treinos/page.tsx        # Semana de treinos + cardio complementar
+    evolucao/page.tsx       # Peso, gráfico, medidas e resumo semanal
+    perfil/page.tsx         # Dados + cálculos automáticos + sair da conta
+    layout.tsx              # <AuthProvider><ProfileProvider>{children}</...>
+    globals.css             # Tailwind + tokens visuais globais
 
   components/
     ui/                  # primitivos (Card, Button, ProgressBar)
-    layout/AppShell.tsx  # container central + navegação inferior fixa
+    layout/AppShell.tsx  # gate de autenticação/onboarding + navegação inferior fixa
     BottomNavigation.tsx # navegação inferior (Início/Hoje/Alimentação/Treinos/Evolução)
-    TopBar.tsx           # cabeçalho com saudação/título + avatar
+    TopBar.tsx           # cabeçalho com saudação/título + avatar (lê do ProfileProvider)
     InfoHelp.tsx         # botão "?" -> bottom sheet (mobile) / popover (desktop)
-    StatusBadge.tsx       # selos "Você preenche" / "Automático" / "Sua meta"
+    StatusBadge.tsx      # selos "Você preenche" / "Automático" / "Sua meta"
     MetricCard.tsx, ProgressCard.tsx, MealCard.tsx, TimelineItem.tsx,
     WorkoutDay.tsx, WeeklySummaryCard.tsx, WaterTracker.tsx, WeightChart.tsx,
     SectionHeader.tsx, icons.tsx
 
   data/
-    mockFernanda.ts      # TODOS os dados mockados (perfil, metas, plano
-                          # alimentar, treinos, histórico de peso, medidas,
-                          # resumo semanal, trocas de alimentos)
+    foodSwaps.ts          # banco de trocas de alimentos (conteúdo de referência
+                           # fixo, não é dado do usuário — por isso não é tabela)
 
   lib/
-    calculations.ts      # fórmulas de IMC, metabolismo basal, TDEE e macros
-    supabase.ts          # cliente Supabase preparado (não usado ainda)
-    utils.ts              # helpers (cn, formatação de números/kg/litros)
+    auth-context.tsx      # <AuthProvider> — sessão Supabase Auth (client-side)
+    profile-context.tsx   # <ProfileProvider> — profile + user_goals da pessoa logada
+    queries.ts            # todas as leituras/escritas no banco, tipadas
+    weeklySummary.ts       # calcula o resumo semanal ao vivo a partir dos registros
+    calculations.ts        # fórmulas de IMC, metabolismo basal, TDEE e macros
+    date.ts                 # helpers de data (semana atual, dia da semana)
+    supabase.ts             # cliente Supabase (null se env vars não configuradas)
+    utils.ts                # helpers (cn, formatação de números/kg/litros)
 
   types/
-    index.ts             # tipos do domínio, já mapeados para as futuras
-                          # tabelas do Supabase (ver comentário no topo do arquivo)
+    index.ts             # tipos de domínio (camelCase) usados pelos componentes
+    database.ts           # tipos gerados do schema real do Supabase (snake_case)
 ```
 
-### Onde estão os dados mockados
+### Autenticação e dados por usuária
 
-Tudo em **`src/data/mockFernanda.ts`**. Nenhum componente tem números
-"hardcoded" — todos importam desse arquivo. Para editar os números de
-exemplo (peso, metas, plano alimentar, histórico etc.), esse é o único
-arquivo que precisa mudar.
+- Login/cadastro simples por e-mail e senha (`src/app/login`).
+- No primeiro acesso, o onboarding (`src/app/onboarding`) pede nome, idade,
+  altura, peso, nível de atividade, déficit e meta de treinos — e calcula e
+  salva as metas automaticamente (mesmas fórmulas de `lib/calculations.ts`).
+- Cada tabela tem RLS: uma pessoa só lê/escreve suas próprias linhas
+  (`profile_id = auth.uid()`). `meals` e `workouts` têm também linhas
+  "padrão" (`profile_id null`), visíveis a todo mundo — é o plano
+  alimentar/catálogo de treino sugerido.
+- Se o seu projeto Supabase tiver **"Confirm email" ativado** (padrão), a
+  conta só libera sessão depois de clicar no link recebido por e-mail. Para
+  testar mais rápido, desative em Authentication → Sign In / Providers →
+  Email no painel do Supabase.
 
 ### Padrão visual "quem preenche o quê"
 
 Qualquer informação que possa gerar dúvida tem um ícone **"?"**
 (`<InfoHelp />`) que abre uma explicação simples em bottom sheet (mobile) ou
-popover (desktop), dizendo o que é o dado, para que serve, e se é algo que a
-Fernanda preenche, algo calculado automaticamente, ou uma meta. Esse último
+popover (desktop), dizendo o que é o dado, para que serve, e se é algo que
+você preenche, algo calculado automaticamente, ou uma meta. Esse último
 ponto usa o componente `<StatusBadge />` com três variações:
 
-- 🟠 **Você preenche** — dado que a própria Fernanda informa
+- 🟠 **Você preenche** — dado que a própria pessoa informa
 - 🟢 **Automático** — calculado pelo sistema a partir de outros dados
 - 🟡 **Sua meta** — um alvo definido (pode ser ajustado no Perfil)
 
-## Como integrar o Supabase depois
+## Banco de dados (Supabase)
 
-A estrutura já foi pensada para isso, mas **nada está conectado ainda**:
+Schema completo em produção — 10 tabelas, todas com RLS:
+`profiles`, `user_goals`, `daily_logs`, `weight_logs`, `measurements`,
+`meals`, `meal_logs`, `workouts`, `workout_logs`, `weekly_summaries` (essa
+última reservada para snapshots futuros; hoje o resumo semanal é calculado
+ao vivo em `lib/weeklySummary.ts`).
 
-1. Crie um projeto no [Supabase](https://supabase.com) e rode migrations
-   criando as tabelas descritas nos comentários de `src/types/index.ts`:
-   `profiles`, `user_goals`, `daily_logs`, `weight_logs`, `measurements`,
-   `meals`, `meal_logs`, `workouts`, `workout_logs`, `weekly_summaries` —
-   todas com RLS por usuário.
-2. Copie `.env.example` para `.env.local` e preencha
-   `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   (Project Settings → API no painel do Supabase).
-3. O cliente já existe em `src/lib/supabase.ts` (retorna `null` enquanto as
-   variáveis de ambiente não estiverem configuradas).
-4. Troque, página por página, os imports de `src/data/mockFernanda.ts` por
-   consultas reais via esse cliente (o ideal é criar hooks como
-   `useDailyLog()`, `useWeeklySummary()` etc.), mantendo os mesmos tipos de
-   `src/types/index.ts` para não precisar reescrever os componentes.
-5. Autenticação real (login da Fernanda) ainda não existe — é o próximo
-   passo natural depois do banco de dados estar conectado.
+Se precisar regenerar os tipos depois de uma migration nova:
+
+```bash
+# via MCP do Supabase, ou:
+npx supabase gen types typescript --project-id <seu-project-ref> > src/types/database.ts
+```
 
 ## Publicação automática no GitHub Pages
 
 Todo push na branch principal roda `.github/workflows/deploy-pages.yml`, que
 builda o site como export estático do Next.js e publica em
 https://viraappoficial.github.io/Mare/.
+
+**Necessário configurar uma vez**: em Settings → Secrets and variables →
+Actions do repositório, adicione:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+Sem esses secrets, o build no GitHub Actions publica o app sem conexão com o
+banco (tela de "Configuração pendente").
 
 Detalhes técnicos (em `next.config.mjs`):
 
@@ -135,6 +155,8 @@ Detalhes técnicos (em `next.config.mjs`):
 - `images: { unoptimized: true }` porque a otimização de imagem do Next
   precisa de servidor, indisponível em export estático (o app não usa
   `next/image` hoje, mas a opção já fica pronta).
+- Autenticação é 100% client-side (sessão em `localStorage`) — não depende
+  de servidor, então funciona normalmente num site estático.
 
 Se quiser rodar esse build de exportação localmente:
 
@@ -142,15 +164,14 @@ Se quiser rodar esse build de exportação localmente:
 GITHUB_PAGES_BUILD=true npm run build   # gera a pasta out/
 ```
 
-## Como publicar na Vercel
+## Como publicar na Vercel (alternativa)
 
 1. Suba este repositório no GitHub (branch principal com o projeto Next.js).
 2. Em [vercel.com](https://vercel.com), clique em "Add New… → Project" e
    importe o repositório.
 3. A Vercel detecta automaticamente que é um projeto Next.js — não é
    necessário configurar build command nem output directory.
-4. Quando o Supabase estiver conectado, adicione
-   `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em
+4. Adicione `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em
    Project Settings → Environment Variables antes do deploy.
 5. Cada push na branch principal gera um novo deploy automaticamente.
 
