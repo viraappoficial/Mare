@@ -11,10 +11,12 @@ import { cn, formatNumber } from "@/lib/utils";
 import { useProfileData } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import {
+  computeFoodNutrition,
   deleteMealLog,
   foodCategoryLabel,
   getFoods,
   getMealLogsForDate,
+  insertCustomFood,
   insertMealLog,
   insertMealLogFromFood,
   type FoodRow,
@@ -23,6 +25,13 @@ import {
   type ProfileRow,
 } from "@/lib/queries";
 import { todayISO } from "@/lib/date";
+import type { FoodCategory } from "@/types";
+
+const foodCategories: { value: FoodCategory; label: string }[] = [
+  { value: "proteina", label: "Proteínas" },
+  { value: "carboidrato", label: "Carboidratos" },
+  { value: "outro", label: "Outros" },
+];
 
 type Tab = "resumo" | "cardapio";
 
@@ -77,6 +86,10 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
     await reloadLogs();
   }
 
+  function handleFoodCreated(food: FoodRow) {
+    setFoods((prev) => [...prev, food]);
+  }
+
   return (
     <>
       <TopBar title="Alimentação" />
@@ -118,6 +131,7 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
           proteinConsumed={proteinConsumed}
           onLogged={reloadLogs}
           onDelete={handleDelete}
+          onFoodCreated={handleFoodCreated}
         />
       )}
     </>
@@ -242,6 +256,7 @@ function CardapioTab({
   proteinConsumed,
   onLogged,
   onDelete,
+  onFoodCreated,
 }: {
   profile: ProfileRow;
   goal: GoalRow;
@@ -251,7 +266,9 @@ function CardapioTab({
   proteinConsumed: number;
   onLogged: () => void;
   onDelete: (id: string) => void;
+  onFoodCreated: (food: FoodRow) => void;
 }) {
+  const [showCustomForm, setShowCustomForm] = useState(false);
   const caloriesLeft = Math.max(goal.calorie_target - caloriesConsumed, 0);
   const proteinLeft = Math.max(goal.protein_target_g - proteinConsumed, 0);
   const overCalories = caloriesConsumed > goal.calorie_target;
@@ -266,9 +283,9 @@ function CardapioTab({
     return Array.from(byCategory.entries());
   }, [foods]);
 
-  async function handleAddFood(food: FoodRow, quantity: number) {
+  async function handleAddFood(food: FoodRow, grams: number) {
     if (!supabase) return;
-    await insertMealLogFromFood(supabase, profile.id, todayISO(), food, quantity);
+    await insertMealLogFromFood(supabase, profile.id, todayISO(), food, grams);
     onLogged();
   }
 
@@ -304,6 +321,27 @@ function CardapioTab({
             </div>
           ))}
         </div>
+
+        {!showCustomForm ? (
+          <button
+            type="button"
+            onClick={() => setShowCustomForm(true)}
+            className="mt-4 text-sm font-medium text-sage-dark underline-offset-2 hover:underline"
+          >
+            + Cadastrar um alimento que não está na lista
+          </button>
+        ) : (
+          <div className="mt-4 border-t border-mist/60 pt-4">
+            <CustomFoodForm
+              profile={profile}
+              onCreated={(food) => {
+                onFoodCreated(food);
+                setShowCustomForm(false);
+              }}
+              onCancel={() => setShowCustomForm(false)}
+            />
+          </div>
+        )}
       </Card>
 
       <RegistroLivre profile={profile} onLogged={onLogged} />
@@ -350,59 +388,207 @@ function FoodRowPicker({
   onAdd,
 }: {
   food: FoodRow;
-  onAdd: (food: FoodRow, quantity: number) => Promise<void>;
+  onAdd: (food: FoodRow, grams: number) => Promise<void>;
 }) {
-  const [quantity, setQuantity] = useState(1);
+  const [grams, setGrams] = useState(String(food.default_grams));
   const [adding, setAdding] = useState(false);
 
+  const gramsNumber = Number(grams) || 0;
+  const nutrition = computeFoodNutrition(food, gramsNumber);
+
   async function handleAdd() {
+    if (gramsNumber <= 0) return;
     setAdding(true);
     try {
-      await onAdd(food, quantity);
-      setQuantity(1);
+      await onAdd(food, gramsNumber);
+      setGrams(String(food.default_grams));
     } finally {
       setAdding(false);
     }
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3">
-      <div className="min-w-0">
+    <div className="rounded-2xl bg-cream px-4 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
         <p className="truncate text-sm font-medium text-ink">{food.name}</p>
-        <p className="text-xs text-ink/50">
-          {food.portion_label} · {formatNumber(food.calories)} kcal ·{" "}
-          {formatNumber(food.protein_g)} g proteína
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setQuantity((q) => Math.max(q - 0.5, 0.5))}
-          aria-label="Diminuir quantidade"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink/60 hover:text-ink"
-        >
-          −
-        </button>
-        <span className="w-8 text-center text-sm font-semibold text-ink">
-          {quantity}×
+        <span className="shrink-0 text-xs text-ink/50">
+          {formatNumber(food.calories_per_100g)} kcal / 100 g
         </span>
-        <button
-          type="button"
-          onClick={() => setQuantity((q) => q + 0.5)}
-          aria-label="Aumentar quantidade"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink/60 hover:text-ink"
-        >
-          +
-        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={grams}
+            onChange={(e) => setGrams(e.target.value)}
+            className="w-full rounded-xl border border-mist bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sage"
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink/40">
+            g
+          </span>
+        </div>
+        <span className="shrink-0 text-xs text-ink/60">
+          = {formatNumber(nutrition.calories)} kcal ·{" "}
+          {formatNumber(nutrition.proteinG)} g proteína
+        </span>
         <Button
           onClick={handleAdd}
-          disabled={adding}
-          className="min-h-0 px-3 py-2 text-sm"
+          disabled={adding || gramsNumber <= 0}
+          className="min-h-0 shrink-0 px-3 py-2 text-sm"
         >
           Add
         </Button>
       </div>
     </div>
+  );
+}
+
+const customFoodCategoryDefault: FoodCategory = "outro";
+
+function CustomFoodForm({
+  profile,
+  onCreated,
+  onCancel,
+}: {
+  profile: ProfileRow;
+  onCreated: (food: FoodRow) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<FoodCategory>(customFoodCategoryDefault);
+  const [caloriesPer100g, setCaloriesPer100g] = useState("");
+  const [proteinPer100g, setProteinPer100g] = useState("");
+  const [carbsPer100g, setCarbsPer100g] = useState("");
+  const [fatPer100g, setFatPer100g] = useState("");
+  const [defaultGrams, setDefaultGrams] = useState("100");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!supabase || !name || !caloriesPer100g || !proteinPer100g) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const food = await insertCustomFood(supabase, profile.id, {
+        name,
+        category,
+        caloriesPer100g: Number(caloriesPer100g),
+        proteinPer100g: Number(proteinPer100g),
+        carbsPer100g: carbsPer100g ? Number(carbsPer100g) : null,
+        fatPer100g: fatPer100g ? Number(fatPer100g) : null,
+        defaultGrams: Number(defaultGrams) || 100,
+      });
+      onCreated(food);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <p className="text-sm text-ink/60">
+        Informe os valores por 100 g — o app calcula o resto quando você
+        adicionar a quantidade.
+      </p>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nome do alimento"
+        required
+        className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+      />
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value as FoodCategory)}
+        className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+      >
+        {foodCategories.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={caloriesPer100g}
+          onChange={(e) => setCaloriesPer100g(e.target.value)}
+          placeholder="kcal / 100g"
+          required
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+        <input
+          type="number"
+          inputMode="decimal"
+          value={proteinPer100g}
+          onChange={(e) => setProteinPer100g(e.target.value)}
+          placeholder="proteína g / 100g"
+          required
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={carbsPer100g}
+          onChange={(e) => setCarbsPer100g(e.target.value)}
+          placeholder="carbo g / 100g (opcional)"
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+        <input
+          type="number"
+          inputMode="decimal"
+          value={fatPer100g}
+          onChange={(e) => setFatPer100g(e.target.value)}
+          placeholder="gordura g / 100g (opcional)"
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+      </div>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-ink/70">
+          Porção sugerida (pra já vir preenchida ao adicionar)
+        </span>
+        <div className="relative">
+          <input
+            type="number"
+            inputMode="decimal"
+            value={defaultGrams}
+            onChange={(e) => setDefaultGrams(e.target.value)}
+            className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink/40">
+            g
+          </span>
+        </div>
+      </label>
+
+      {error && (
+        <p className="rounded-2xl bg-peach/40 px-4 py-2.5 text-sm text-ink">
+          {error}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          className="flex-1"
+        >
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={saving} className="flex-1">
+          {saving ? "Salvando..." : "Salvar alimento"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

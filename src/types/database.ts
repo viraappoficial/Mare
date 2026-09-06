@@ -73,37 +73,37 @@ export type Database = {
       }
       foods: {
         Row: {
-          calories: number
-          carbs_g: number | null
+          calories_per_100g: number
+          carbs_per_100g: number | null
           category: string
-          fat_g: number | null
+          default_grams: number
+          fat_per_100g: number | null
           id: string
           name: string
-          portion_label: string
           profile_id: string | null
-          protein_g: number
+          protein_per_100g: number
         }
         Insert: {
-          calories: number
-          carbs_g?: number | null
+          calories_per_100g: number
+          carbs_per_100g?: number | null
           category: string
-          fat_g?: number | null
+          default_grams?: number
+          fat_per_100g?: number | null
           id?: string
           name: string
-          portion_label: string
           profile_id?: string | null
-          protein_g?: number
+          protein_per_100g: number
         }
         Update: {
-          calories?: number
-          carbs_g?: number | null
+          calories_per_100g?: number
+          carbs_per_100g?: number | null
           category?: string
-          fat_g?: number | null
+          default_grams?: number
+          fat_per_100g?: number | null
           id?: string
           name?: string
-          portion_label?: string
           profile_id?: string | null
-          protein_g?: number
+          protein_per_100g?: number
         }
         Relationships: [
           {

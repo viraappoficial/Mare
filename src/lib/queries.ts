@@ -339,24 +339,68 @@ export function foodCategoryLabel(category: string) {
   return foodCategoryLabels[category] ?? category;
 }
 
-/** Registra um alimento do banco no cardápio de hoje, já multiplicando pela quantidade escolhida */
+/** Calculadora: a partir do valor por 100g do alimento, calcula pra quantidade em gramas informada */
+export function computeFoodNutrition(food: FoodRow, grams: number) {
+  const factor = grams / 100;
+  return {
+    calories: Math.round(food.calories_per_100g * factor),
+    proteinG: Math.round(food.protein_per_100g * factor * 10) / 10,
+    carbsG: food.carbs_per_100g != null ? Math.round(food.carbs_per_100g * factor * 10) / 10 : null,
+    fatG: food.fat_per_100g != null ? Math.round(food.fat_per_100g * factor * 10) / 10 : null,
+  };
+}
+
+/** Registra um alimento do banco no cardápio de hoje, calculando as calorias pelos gramas informados */
 export async function insertMealLogFromFood(
   db: TypedClient,
   profileId: string,
   date: string,
   food: FoodRow,
-  quantity: number
+  grams: number
 ) {
+  const { calories, proteinG } = computeFoodNutrition(food, grams);
   const { error } = await db.from("meal_logs").insert({
     profile_id: profileId,
     date,
     food_id: food.id,
-    quantity,
-    description: quantity === 1 ? food.name : `${food.name} (×${quantity})`,
-    calories: Math.round(food.calories * quantity),
-    protein_g: Math.round(food.protein_g * quantity * 10) / 10,
+    quantity: grams,
+    description: `${food.name} (${grams} g)`,
+    calories,
+    protein_g: proteinG,
   });
   if (error) throw error;
+}
+
+/** Cria um alimento próprio (visível só pra quem criou) no banco de alimentos */
+export async function insertCustomFood(
+  db: TypedClient,
+  profileId: string,
+  input: {
+    name: string;
+    category: string;
+    caloriesPer100g: number;
+    proteinPer100g: number;
+    carbsPer100g?: number | null;
+    fatPer100g?: number | null;
+    defaultGrams?: number;
+  }
+) {
+  const { data, error } = await db
+    .from("foods")
+    .insert({
+      profile_id: profileId,
+      name: input.name,
+      category: input.category,
+      calories_per_100g: input.caloriesPer100g,
+      protein_per_100g: input.proteinPer100g,
+      carbs_per_100g: input.carbsPer100g ?? null,
+      fat_per_100g: input.fatPer100g ?? null,
+      default_grams: input.defaultGrams ?? 100,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function getWorkoutLogsInRange(
