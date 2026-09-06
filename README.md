@@ -13,7 +13,7 @@ seção abaixo).
 - **Next.js 14** (App Router) + **TypeScript**, exportado como site estático
   (`output: "export"`) — sem servidor Node, tudo roda no navegador.
 - **Tailwind CSS**, componentes próprios (sem dependência de biblioteca de UI).
-- **Supabase**: Postgres (10 tabelas, todas com RLS por usuária) + Auth
+- **Supabase**: Postgres (11 tabelas, todas com RLS por usuária) + Auth
   (e-mail/senha, sessão em `localStorage`, já que o site é estático).
 
 ## Como rodar
@@ -49,7 +49,7 @@ src/
     onboarding/page.tsx    # 1ª vez: cria profile + user_goals a partir dos dados iniciais
     page.tsx               # Dashboard / Início (rota "/")
     hoje/page.tsx           # Registro rápido do dia
-    alimentacao/page.tsx    # Resumo, plano do dia (com registro rápido) e trocas
+    alimentacao/page.tsx    # Resumo + "Meu cardápio" (monta o dia escolhendo alimentos)
     treinos/page.tsx        # Semana de treinos + cardio complementar
     evolucao/page.tsx       # Peso, gráfico, medidas e resumo semanal
     perfil/page.tsx         # Dados + cálculos automáticos + sair da conta
@@ -63,13 +63,9 @@ src/
     TopBar.tsx           # cabeçalho com saudação/título + avatar (lê do ProfileProvider)
     InfoHelp.tsx         # botão "?" -> bottom sheet (mobile) / popover (desktop)
     StatusBadge.tsx      # selos "Você preenche" / "Automático" / "Sua meta"
-    MetricCard.tsx, ProgressCard.tsx, MealCard.tsx, TimelineItem.tsx,
+    MetricCard.tsx, ProgressCard.tsx, TimelineItem.tsx,
     WorkoutDay.tsx, WeeklySummaryCard.tsx, WaterTracker.tsx, WeightChart.tsx,
     SectionHeader.tsx, icons.tsx
-
-  data/
-    foodSwaps.ts          # banco de trocas de alimentos (conteúdo de referência
-                           # fixo, não é dado do usuário — por isso não é tabela)
 
   lib/
     auth-context.tsx      # <AuthProvider> — sessão Supabase Auth (client-side)
@@ -93,9 +89,15 @@ src/
   altura, peso, nível de atividade, déficit e meta de treinos — e calcula e
   salva as metas automaticamente (mesmas fórmulas de `lib/calculations.ts`).
 - Cada tabela tem RLS: uma pessoa só lê/escreve suas próprias linhas
-  (`profile_id = auth.uid()`). `meals` e `workouts` têm também linhas
-  "padrão" (`profile_id null`), visíveis a todo mundo — é o plano
-  alimentar/catálogo de treino sugerido.
+  (`profile_id = auth.uid()`). `meals`, `workouts` e `foods` têm também
+  linhas "padrão" (`profile_id null`), visíveis a todo mundo — é o
+  catálogo de treino e o banco de alimentos usados no app.
+- **Meu cardápio** (aba na tela Alimentação): a pessoa monta o próprio dia
+  escolhendo alimentos do banco (`foods` — valores por 100g) e digitando os
+  gramas; o app calcula a calorias/proteína na hora (`lib/queries.ts` ->
+  `computeFoodNutrition`). Dá pra cadastrar um alimento próprio (fica
+  visível só pra quem criou) ou registrar algo livre com kcal manual. A
+  soma do dia é comparada com a meta calculada no onboarding.
 - Se o seu projeto Supabase tiver **"Confirm email" ativado** (padrão), a
   conta só libera sessão depois de clicar no link recebido por e-mail. Para
   testar mais rápido, desative em Authentication → Sign In / Providers →
@@ -115,11 +117,11 @@ ponto usa o componente `<StatusBadge />` com três variações:
 
 ## Banco de dados (Supabase)
 
-Schema completo em produção — 10 tabelas, todas com RLS:
+Schema completo em produção — 11 tabelas, todas com RLS:
 `profiles`, `user_goals`, `daily_logs`, `weight_logs`, `measurements`,
-`meals`, `meal_logs`, `workouts`, `workout_logs`, `weekly_summaries` (essa
-última reservada para snapshots futuros; hoje o resumo semanal é calculado
-ao vivo em `lib/weeklySummary.ts`).
+`meals`, `meal_logs`, `foods`, `workouts`, `workout_logs`, `weekly_summaries`
+(essa última reservada para snapshots futuros; hoje o resumo semanal é
+calculado ao vivo em `lib/weeklySummary.ts`).
 
 Se precisar regenerar os tipos depois de uma migration nova:
 

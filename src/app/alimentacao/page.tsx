@@ -1,35 +1,43 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { TopBar } from "@/components/TopBar";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { InfoHelp } from "@/components/InfoHelp";
-import { MealCard } from "@/components/MealCard";
 import { cn, formatNumber } from "@/lib/utils";
-import { foodSwaps } from "@/data/foodSwaps";
 import { useProfileData } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import {
-  getDefaultMeals,
+  computeFoodNutrition,
+  deleteMealLog,
+  foodCategoryLabel,
+  getFoods,
   getMealLogsForDate,
+  insertCustomFood,
   insertMealLog,
-  toMeal,
+  insertMealLogFromFood,
+  type FoodRow,
   type GoalRow,
   type MealLogRow,
-  type MealRow,
   type ProfileRow,
 } from "@/lib/queries";
 import { todayISO } from "@/lib/date";
+import type { FoodCategory } from "@/types";
 
-type Tab = "resumo" | "plano" | "trocas";
+const foodCategories: { value: FoodCategory; label: string }[] = [
+  { value: "proteina", label: "Proteínas" },
+  { value: "carboidrato", label: "Carboidratos" },
+  { value: "outro", label: "Outros" },
+];
+
+type Tab = "resumo" | "cardapio";
 
 const tabs: { value: Tab; label: string }[] = [
   { value: "resumo", label: "Resumo" },
-  { value: "plano", label: "Plano do dia" },
-  { value: "trocas", label: "Trocas" },
+  { value: "cardapio", label: "Meu cardápio" },
 ];
 
 export default function AlimentacaoPage() {
@@ -44,7 +52,7 @@ export default function AlimentacaoPage() {
 
 function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow }) {
   const [tab, setTab] = useState<Tab>("resumo");
-  const [defaultMeals, setDefaultMeals] = useState<MealRow[]>([]);
+  const [foods, setFoods] = useState<FoodRow[]>([]);
   const [todayLogs, setTodayLogs] = useState<MealLogRow[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -58,9 +66,9 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
 
   useEffect(() => {
     if (!supabase) return;
-    Promise.all([getDefaultMeals(supabase), getMealLogsForDate(supabase, profile.id, date)]).then(
-      ([meals, logs]) => {
-        setDefaultMeals(meals);
+    Promise.all([getFoods(supabase), getMealLogsForDate(supabase, profile.id, date)]).then(
+      ([foodsData, logs]) => {
+        setFoods(foodsData);
         setTodayLogs(logs);
         setLoaded(true);
       }
@@ -71,17 +79,15 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
 
   const caloriesConsumed = todayLogs.reduce((sum, m) => sum + (m.calories ?? 0), 0);
   const proteinConsumed = todayLogs.reduce((sum, m) => sum + (m.protein_g ?? 0), 0);
-  const loggedMealIds = new Set(todayLogs.map((l) => l.meal_id).filter(Boolean));
 
-  async function handleLogDefaultMeal(meal: MealRow) {
+  async function handleDelete(id: string) {
     if (!supabase) return;
-    await insertMealLog(supabase, profile.id, date, {
-      mealId: meal.id,
-      description: meal.title,
-      calories: meal.approx_calories,
-      proteinG: meal.approx_protein_g,
-    });
+    await deleteMealLog(supabase, id);
     await reloadLogs();
+  }
+
+  function handleFoodCreated(food: FoodRow) {
+    setFoods((prev) => [...prev, food]);
   }
 
   return (
@@ -112,19 +118,22 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
           proteinTarget={goal.protein_target_g}
           carbTarget={goal.carb_target_g}
           fatTarget={goal.fat_target_g}
-          onVerTrocas={() => setTab("trocas")}
+          onIrPraCardapio={() => setTab("cardapio")}
+        />
+      )}
+      {tab === "cardapio" && (
+        <CardapioTab
+          profile={profile}
+          goal={goal}
+          foods={foods}
+          todayLogs={todayLogs}
+          caloriesConsumed={caloriesConsumed}
+          proteinConsumed={proteinConsumed}
           onLogged={reloadLogs}
+          onDelete={handleDelete}
+          onFoodCreated={handleFoodCreated}
         />
       )}
-      {tab === "plano" && (
-        <PlanoTab
-          meals={defaultMeals}
-          loggedMealIds={loggedMealIds}
-          onSwap={() => setTab("trocas")}
-          onLog={handleLogDefaultMeal}
-        />
-      )}
-      {tab === "trocas" && <TrocasTab />}
     </>
   );
 }
@@ -136,8 +145,7 @@ function ResumoTab({
   proteinTarget,
   carbTarget,
   fatTarget,
-  onVerTrocas,
-  onLogged,
+  onIrPraCardapio,
 }: {
   caloriesConsumed: number;
   proteinConsumed: number;
@@ -145,34 +153,8 @@ function ResumoTab({
   proteinTarget: number;
   carbTarget: number;
   fatTarget: number;
-  onVerTrocas: () => void;
-  onLogged: () => void;
+  onIrPraCardapio: () => void;
 }) {
-  const { profile } = useProfileData();
-  const [description, setDescription] = useState("");
-  const [calories, setCalories] = useState("");
-  const [proteinG, setProteinG] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!supabase || !profile || !description) return;
-    setSaving(true);
-    try {
-      await insertMealLog(supabase, profile.id, todayISO(), {
-        description,
-        calories: calories ? Number(calories) : null,
-        proteinG: proteinG ? Number(proteinG) : null,
-      });
-      setDescription("");
-      setCalories("");
-      setProteinG("");
-      onLogged();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <Card className="flex flex-col gap-4">
@@ -208,53 +190,17 @@ function ResumoTab({
         />
       </Card>
 
-      <Card>
-        <h3 className="mb-3 text-base font-semibold text-ink">
-          Registro rápido
-        </h3>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="O que você comeu?"
-            required
-            className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="number"
-              inputMode="numeric"
-              value={calories}
-              onChange={(e) => setCalories(e.target.value)}
-              placeholder="kcal (opcional)"
-              className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
-            />
-            <input
-              type="number"
-              inputMode="numeric"
-              value={proteinG}
-              onChange={(e) => setProteinG(e.target.value)}
-              placeholder="proteína g (opcional)"
-              className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
-            />
-          </div>
-          <Button type="submit" fullWidth disabled={saving}>
-            {saving ? "Salvando..." : "Adicionar"}
-          </Button>
-        </form>
-      </Card>
-
       <Card className="bg-peach/40">
         <p className="text-sm leading-relaxed text-ink/80">
-          Este é um guia, não uma lista obrigatória. Você não precisa comer
-          exatamente isso — dá pra trocar qualquer item.
+          Este é o quanto você já comeu hoje comparado com sua meta. Pra
+          registrar o que comeu, vá na aba &quot;Meu cardápio&quot;.
         </p>
         <button
           type="button"
-          onClick={onVerTrocas}
+          onClick={onIrPraCardapio}
           className="mt-2 text-sm font-semibold text-sage-dark underline-offset-2 hover:underline"
         >
-          Ver trocas →
+          Ir pro meu cardápio →
         </button>
       </Card>
     </div>
@@ -301,65 +247,420 @@ function MacroRow({
   );
 }
 
-function PlanoTab({
-  meals,
-  loggedMealIds,
-  onSwap,
-  onLog,
+function CardapioTab({
+  profile,
+  goal,
+  foods,
+  todayLogs,
+  caloriesConsumed,
+  proteinConsumed,
+  onLogged,
+  onDelete,
+  onFoodCreated,
 }: {
-  meals: MealRow[];
-  loggedMealIds: Set<string | null>;
-  onSwap: () => void;
-  onLog: (meal: MealRow) => void;
+  profile: ProfileRow;
+  goal: GoalRow;
+  foods: FoodRow[];
+  todayLogs: MealLogRow[];
+  caloriesConsumed: number;
+  proteinConsumed: number;
+  onLogged: () => void;
+  onDelete: (id: string) => void;
+  onFoodCreated: (food: FoodRow) => void;
 }) {
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const caloriesLeft = Math.max(goal.calorie_target - caloriesConsumed, 0);
+  const proteinLeft = Math.max(goal.protein_target_g - proteinConsumed, 0);
+  const overCalories = caloriesConsumed > goal.calorie_target;
+
+  const groups = useMemo(() => {
+    const byCategory = new Map<string, FoodRow[]>();
+    for (const food of foods) {
+      const list = byCategory.get(food.category) ?? [];
+      list.push(food);
+      byCategory.set(food.category, list);
+    }
+    return Array.from(byCategory.entries());
+  }, [foods]);
+
+  async function handleAddFood(food: FoodRow, grams: number) {
+    if (!supabase) return;
+    await insertMealLogFromFood(supabase, profile.id, todayISO(), food, grams);
+    onLogged();
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <Card className="bg-peach/40 py-3.5">
-        <p className="text-sm leading-relaxed text-ink/80">
-          Este é um guia, não uma lista obrigatória. Toque em &quot;Registrar&quot;
-          quando comer algo da lista, ou registre livre no Resumo.
+      <Card className={overCalories ? "bg-peach/40" : "bg-sage/15"}>
+        <p className="text-sm font-medium text-ink">
+          {overCalories
+            ? `Você passou ${formatNumber(caloriesConsumed - goal.calorie_target)} kcal da sua meta de hoje.`
+            : `Faltam ~${formatNumber(caloriesLeft)} kcal e ~${formatNumber(proteinLeft)} g de proteína pra bater sua meta hoje.`}
         </p>
       </Card>
-      {meals.map((meal) => (
-        <MealCard
-          key={meal.id}
-          meal={toMeal(meal)}
-          onSwap={onSwap}
-          onLog={() => onLog(meal)}
-          logged={loggedMealIds.has(meal.id)}
-        />
-      ))}
+
+      <Card>
+        <h3 className="mb-1 text-base font-semibold text-ink">
+          Adicionar alimento
+        </h3>
+        <p className="mb-4 text-sm text-ink/50">
+          Escolha a quantidade e toque em adicionar — as calorias somam
+          automático.
+        </p>
+        <div className="flex flex-col gap-5">
+          {groups.map(([category, items]) => (
+            <div key={category}>
+              <h4 className="mb-2 text-sm font-semibold text-ink/70">
+                {foodCategoryLabel(category)}
+              </h4>
+              <div className="flex flex-col gap-2">
+                {items.map((food) => (
+                  <FoodRowPicker key={food.id} food={food} onAdd={handleAddFood} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {!showCustomForm ? (
+          <button
+            type="button"
+            onClick={() => setShowCustomForm(true)}
+            className="mt-4 text-sm font-medium text-sage-dark underline-offset-2 hover:underline"
+          >
+            + Cadastrar um alimento que não está na lista
+          </button>
+        ) : (
+          <div className="mt-4 border-t border-mist/60 pt-4">
+            <CustomFoodForm
+              profile={profile}
+              onCreated={(food) => {
+                onFoodCreated(food);
+                setShowCustomForm(false);
+              }}
+              onCancel={() => setShowCustomForm(false)}
+            />
+          </div>
+        )}
+      </Card>
+
+      <RegistroLivre profile={profile} onLogged={onLogged} />
+
+      <Card>
+        <h3 className="mb-3 text-base font-semibold text-ink">
+          Seu cardápio de hoje
+        </h3>
+        {todayLogs.length === 0 ? (
+          <p className="text-sm text-ink/50">Nada registrado ainda hoje.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {todayLogs.map((log) => (
+              <div
+                key={log.id}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-cream px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-medium text-ink">{log.description}</p>
+                  <p className="text-xs text-ink/50">
+                    {log.calories != null ? `${formatNumber(log.calories)} kcal` : ""}
+                    {log.protein_g != null ? ` · ${formatNumber(log.protein_g)} g proteína` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDelete(log.id)}
+                  aria-label={`Remover ${log.description}`}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink/40 hover:bg-mist/40 hover:text-ink"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
 
-function TrocasTab() {
+function FoodRowPicker({
+  food,
+  onAdd,
+}: {
+  food: FoodRow;
+  onAdd: (food: FoodRow, grams: number) => Promise<void>;
+}) {
+  const [grams, setGrams] = useState(String(food.default_grams));
+  const [adding, setAdding] = useState(false);
+
+  const gramsNumber = Number(grams) || 0;
+  const nutrition = computeFoodNutrition(food, gramsNumber);
+
+  async function handleAdd() {
+    if (gramsNumber <= 0) return;
+    setAdding(true);
+    try {
+      await onAdd(food, gramsNumber);
+      setGrams(String(food.default_grams));
+    } finally {
+      setAdding(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-5">
-      <p className="text-sm text-ink/60">
-        Troque qualquer proteína, carboidrato ou item da lista abaixo por
-        outro do mesmo grupo — as porções já são equivalentes.
-      </p>
-      {foodSwaps.map((group) => (
-        <Card key={group.id}>
-          <h3 className="mb-3 text-base font-semibold text-ink">
-            {group.label}
-          </h3>
-          <div className="flex flex-col gap-2">
-            {group.items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-2xl bg-cream px-4 py-3"
-              >
-                <span className="text-sm font-medium text-ink">
-                  {item.name}
-                </span>
-                <span className="text-sm text-ink/50">{item.portion}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
+    <div className="rounded-2xl bg-cream px-4 py-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="truncate text-sm font-medium text-ink">{food.name}</p>
+        <span className="shrink-0 text-xs text-ink/50">
+          {formatNumber(food.calories_per_100g)} kcal / 100 g
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={grams}
+            onChange={(e) => setGrams(e.target.value)}
+            className="w-full rounded-xl border border-mist bg-white px-3 py-2 text-sm text-ink outline-none focus:border-sage"
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink/40">
+            g
+          </span>
+        </div>
+        <span className="shrink-0 text-xs text-ink/60">
+          = {formatNumber(nutrition.calories)} kcal ·{" "}
+          {formatNumber(nutrition.proteinG)} g proteína
+        </span>
+        <Button
+          onClick={handleAdd}
+          disabled={adding || gramsNumber <= 0}
+          className="min-h-0 shrink-0 px-3 py-2 text-sm"
+        >
+          Add
+        </Button>
+      </div>
     </div>
+  );
+}
+
+const customFoodCategoryDefault: FoodCategory = "outro";
+
+function CustomFoodForm({
+  profile,
+  onCreated,
+  onCancel,
+}: {
+  profile: ProfileRow;
+  onCreated: (food: FoodRow) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<FoodCategory>(customFoodCategoryDefault);
+  const [caloriesPer100g, setCaloriesPer100g] = useState("");
+  const [proteinPer100g, setProteinPer100g] = useState("");
+  const [carbsPer100g, setCarbsPer100g] = useState("");
+  const [fatPer100g, setFatPer100g] = useState("");
+  const [defaultGrams, setDefaultGrams] = useState("100");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!supabase || !name || !caloriesPer100g || !proteinPer100g) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const food = await insertCustomFood(supabase, profile.id, {
+        name,
+        category,
+        caloriesPer100g: Number(caloriesPer100g),
+        proteinPer100g: Number(proteinPer100g),
+        carbsPer100g: carbsPer100g ? Number(carbsPer100g) : null,
+        fatPer100g: fatPer100g ? Number(fatPer100g) : null,
+        defaultGrams: Number(defaultGrams) || 100,
+      });
+      onCreated(food);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <p className="text-sm text-ink/60">
+        Informe os valores por 100 g — o app calcula o resto quando você
+        adicionar a quantidade.
+      </p>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nome do alimento"
+        required
+        className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+      />
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value as FoodCategory)}
+        className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+      >
+        {foodCategories.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={caloriesPer100g}
+          onChange={(e) => setCaloriesPer100g(e.target.value)}
+          placeholder="kcal / 100g"
+          required
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+        <input
+          type="number"
+          inputMode="decimal"
+          value={proteinPer100g}
+          onChange={(e) => setProteinPer100g(e.target.value)}
+          placeholder="proteína g / 100g"
+          required
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={carbsPer100g}
+          onChange={(e) => setCarbsPer100g(e.target.value)}
+          placeholder="carbo g / 100g (opcional)"
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+        <input
+          type="number"
+          inputMode="decimal"
+          value={fatPer100g}
+          onChange={(e) => setFatPer100g(e.target.value)}
+          placeholder="gordura g / 100g (opcional)"
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+      </div>
+      <label className="block">
+        <span className="mb-1.5 block text-sm font-medium text-ink/70">
+          Porção sugerida (pra já vir preenchida ao adicionar)
+        </span>
+        <div className="relative">
+          <input
+            type="number"
+            inputMode="decimal"
+            value={defaultGrams}
+            onChange={(e) => setDefaultGrams(e.target.value)}
+            className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+          />
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink/40">
+            g
+          </span>
+        </div>
+      </label>
+
+      {error && (
+        <p className="rounded-2xl bg-peach/40 px-4 py-2.5 text-sm text-ink">
+          {error}
+        </p>
+      )}
+
+      <div className="flex gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          className="flex-1"
+        >
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={saving} className="flex-1">
+          {saving ? "Salvando..." : "Salvar alimento"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function RegistroLivre({
+  profile,
+  onLogged,
+}: {
+  profile: ProfileRow;
+  onLogged: () => void;
+}) {
+  const [description, setDescription] = useState("");
+  const [calories, setCalories] = useState("");
+  const [proteinG, setProteinG] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!supabase || !description) return;
+    setSaving(true);
+    try {
+      await insertMealLog(supabase, profile.id, todayISO(), {
+        description,
+        calories: calories ? Number(calories) : null,
+        proteinG: proteinG ? Number(proteinG) : null,
+      });
+      setDescription("");
+      setCalories("");
+      setProteinG("");
+      onLogged();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h3 className="mb-1 text-base font-semibold text-ink">
+        Não achou na lista?
+      </h3>
+      <p className="mb-3 text-sm text-ink/50">
+        Registre livre, com as calorias que você souber.
+      </p>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="O que você comeu?"
+          required
+          className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            type="number"
+            inputMode="numeric"
+            value={calories}
+            onChange={(e) => setCalories(e.target.value)}
+            placeholder="kcal (opcional)"
+            className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+          />
+          <input
+            type="number"
+            inputMode="numeric"
+            value={proteinG}
+            onChange={(e) => setProteinG(e.target.value)}
+            placeholder="proteína g (opcional)"
+            className="w-full rounded-2xl border border-mist bg-white px-4 py-3 text-base text-ink outline-none focus:border-sage"
+          />
+        </div>
+        <Button type="submit" fullWidth disabled={saving}>
+          {saving ? "Salvando..." : "Adicionar"}
+        </Button>
+      </form>
+    </Card>
   );
 }

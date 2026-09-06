@@ -17,6 +17,7 @@
  *   Measurement    -> measurements
  *   WeightEntry    -> weight_logs
  *   WeeklySummary  -> weekly_summaries
+ *   Food           -> foods
  */
 
 export type Sex = "feminino" | "masculino" | "outro";
@@ -161,17 +162,18 @@ export interface WeeklySummary {
   actualWeightChangeKg: number;
 }
 
-/** Alimento usado no banco de trocas da tela Alimentação */
-export interface FoodSwapItem {
-  id: string;
-  name: string;
-  portion: string;
-}
+export type FoodCategory = "proteina" | "carboidrato" | "outro";
 
-export interface FoodSwapGroup {
+/** Futura tabela: foods (banco de alimentos usado pra montar o cardápio do dia) */
+export interface Food {
   id: string;
-  label: string;
-  items: FoodSwapItem[];
+  category: FoodCategory;
+  name: string;
+  portionLabel: string;
+  calories: number;
+  proteinG: number;
+  carbsG?: number;
+  fatG?: number;
 }
 
 /** Ponto de dado calculado exibido no card de progresso / gráfico */

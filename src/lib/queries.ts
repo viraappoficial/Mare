@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { calculateBMR, calculateTDEE, calculateCalorieTarget, calculateProteinTarget, calculateFatTarget, calculateCarbTarget, calculateWaterTarget, calculateWaterTargetTrainingDay } from "@/lib/calculations";
-import type { ActivityLevel, Meal, Sex, WeightEntry } from "@/types";
+import type { ActivityLevel, Sex, WeightEntry } from "@/types";
 
 type TypedClient = SupabaseClient<Database>;
 
@@ -18,6 +18,7 @@ export type MeasurementRow = Database["public"]["Tables"]["measurements"]["Row"]
 export type MealRow = Database["public"]["Tables"]["meals"]["Row"];
 export type MealLogRow = Database["public"]["Tables"]["meal_logs"]["Row"];
 export type WorkoutLogRow = Database["public"]["Tables"]["workout_logs"]["Row"];
+export type FoodRow = Database["public"]["Tables"]["foods"]["Row"];
 
 export const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   sedentario: 1.2,
@@ -270,19 +271,6 @@ export async function getDefaultMeals(db: TypedClient) {
   return data;
 }
 
-/** Adapta uma linha de `meals` (snake_case do banco) para o tipo `Meal` usado pelos componentes */
-export function toMeal(row: MealRow): Meal {
-  return {
-    id: row.id,
-    time: row.time,
-    title: row.title,
-    items: row.items,
-    approxCalories: row.approx_calories ?? undefined,
-    approxProteinG: row.approx_protein_g ?? undefined,
-    optional: row.optional,
-  };
-}
-
 export async function getMealLogsForDate(db: TypedClient, profileId: string, date: string) {
   const { data, error } = await db
     .from("meal_logs")
@@ -323,6 +311,96 @@ export async function insertMealLog(
     protein_g: entry.proteinG ?? null,
   });
   if (error) throw error;
+}
+
+export async function deleteMealLog(db: TypedClient, id: string) {
+  const { error } = await db.from("meal_logs").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Banco de alimentos (padrão + próprios) usado pra montar o cardápio do dia */
+export async function getFoods(db: TypedClient) {
+  const { data, error } = await db
+    .from("foods")
+    .select("*")
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return data;
+}
+
+const foodCategoryLabels: Record<string, string> = {
+  proteina: "Proteínas",
+  carboidrato: "Carboidratos",
+  outro: "Outros",
+};
+
+export function foodCategoryLabel(category: string) {
+  return foodCategoryLabels[category] ?? category;
+}
+
+/** Calculadora: a partir do valor por 100g do alimento, calcula pra quantidade em gramas informada */
+export function computeFoodNutrition(food: FoodRow, grams: number) {
+  const factor = grams / 100;
+  return {
+    calories: Math.round(food.calories_per_100g * factor),
+    proteinG: Math.round(food.protein_per_100g * factor * 10) / 10,
+    carbsG: food.carbs_per_100g != null ? Math.round(food.carbs_per_100g * factor * 10) / 10 : null,
+    fatG: food.fat_per_100g != null ? Math.round(food.fat_per_100g * factor * 10) / 10 : null,
+  };
+}
+
+/** Registra um alimento do banco no cardápio de hoje, calculando as calorias pelos gramas informados */
+export async function insertMealLogFromFood(
+  db: TypedClient,
+  profileId: string,
+  date: string,
+  food: FoodRow,
+  grams: number
+) {
+  const { calories, proteinG } = computeFoodNutrition(food, grams);
+  const { error } = await db.from("meal_logs").insert({
+    profile_id: profileId,
+    date,
+    food_id: food.id,
+    quantity: grams,
+    description: `${food.name} (${grams} g)`,
+    calories,
+    protein_g: proteinG,
+  });
+  if (error) throw error;
+}
+
+/** Cria um alimento próprio (visível só pra quem criou) no banco de alimentos */
+export async function insertCustomFood(
+  db: TypedClient,
+  profileId: string,
+  input: {
+    name: string;
+    category: string;
+    caloriesPer100g: number;
+    proteinPer100g: number;
+    carbsPer100g?: number | null;
+    fatPer100g?: number | null;
+    defaultGrams?: number;
+  }
+) {
+  const { data, error } = await db
+    .from("foods")
+    .insert({
+      profile_id: profileId,
+      name: input.name,
+      category: input.category,
+      calories_per_100g: input.caloriesPer100g,
+      protein_per_100g: input.proteinPer100g,
+      carbs_per_100g: input.carbsPer100g ?? null,
+      fat_per_100g: input.fatPer100g ?? null,
+      default_grams: input.defaultGrams ?? 100,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function getWorkoutLogsInRange(
