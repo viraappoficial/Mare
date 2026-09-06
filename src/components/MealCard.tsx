@@ -4,9 +4,11 @@ import type { Meal } from "@/types";
 interface MealCardProps {
   meal: Meal;
   onSwap?: () => void;
+  onLog?: () => void;
+  logged?: boolean;
 }
 
-export function MealCard({ meal, onSwap }: MealCardProps) {
+export function MealCard({ meal, onSwap, onLog, logged }: MealCardProps) {
   return (
     <Card className="flex gap-4">
       <div className="w-14 shrink-0 pt-0.5 text-sm font-semibold text-sage-dark">
@@ -42,15 +44,27 @@ export function MealCard({ meal, onSwap }: MealCardProps) {
             )}
           </div>
         )}
-        {onSwap && (
-          <button
-            type="button"
-            onClick={onSwap}
-            className="mt-2.5 text-sm font-medium text-sage-dark underline-offset-2 hover:underline"
-          >
-            Ver trocas
-          </button>
-        )}
+        <div className="mt-2.5 flex items-center gap-4">
+          {onLog && (
+            <button
+              type="button"
+              onClick={onLog}
+              disabled={logged}
+              className="text-sm font-medium text-sage-dark underline-offset-2 hover:underline disabled:text-ink/30 disabled:no-underline"
+            >
+              {logged ? "Registrado ✓" : "Registrar"}
+            </button>
+          )}
+          {onSwap && (
+            <button
+              type="button"
+              onClick={onSwap}
+              className="text-sm font-medium text-ink/60 underline-offset-2 hover:underline"
+            >
+              Ver trocas
+            </button>
+          )}
+        </div>
       </div>
     </Card>
   );

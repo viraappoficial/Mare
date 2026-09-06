@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth-context";
+import { ProfileProvider } from "@/lib/profile-context";
 
 export const metadata: Metadata = {
   title: "Fernanda Fit — acompanhamento diário",
@@ -21,7 +23,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <AuthProvider>
+          <ProfileProvider>{children}</ProfileProvider>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

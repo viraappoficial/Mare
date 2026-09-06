@@ -1,9 +1,7 @@
 /**
  * Fórmulas usadas para gerar os "cálculos automáticos" (IMC, metabolismo
- * basal, gasto diário e metas de macros). São as mesmas fórmulas que geraram
- * os números em `src/data/mockFernanda.ts` — ficam aqui para quando o
- * cálculo precisar rodar de verdade (ex: ao editar o perfil), em vez de vir
- * fixo do mock.
+ * basal, gasto diário e metas de macros). Usadas no onboarding (criação da
+ * conta) e na tela de Perfil (ao editar peso/atividade/déficit).
  *
  * Importante: são estimativas de organização pessoal, não prescrição
  * médica/nutricional.

@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { profile } from "@/data/mockFernanda";
+import { useProfileData } from "@/lib/profile-context";
 
 interface TopBarProps {
   greeting?: string;
@@ -8,7 +10,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ greeting, subtitle, title }: TopBarProps) {
-  const initial = profile.name.charAt(0).toUpperCase();
+  const { profile } = useProfileData();
+  const initial = profile?.name.charAt(0).toUpperCase() ?? "?";
   return (
     <div className="mb-5 flex items-center justify-between gap-3">
       <div>
