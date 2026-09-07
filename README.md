@@ -99,7 +99,10 @@ src/
   lista curta de alimentos comuns (`featured = true`); a barra de busca
   filtra o banco inteiro pra quando o alimento não estiver nessa lista.
   Dá pra cadastrar um alimento próprio (fica visível só pra quem criou,
-  já marcado como destaque) ou registrar algo livre com kcal manual. A
+  já marcado como destaque) ou registrar algo livre com kcal manual. Todo
+  alimento tem um botão "Editar" — num alimento próprio, edita direto; num
+  alimento padrão (compartilhado), cria uma cópia personalizada (a RLS não
+  deixa alterar o compartilhado). A
   soma do dia é comparada com a meta calculada no onboarding.
 - Se o seu projeto Supabase tiver **"Confirm email" ativado** (padrão), a
   conta só libera sessão depois de clicar no link recebido por e-mail. Para

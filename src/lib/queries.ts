@@ -372,18 +372,20 @@ export async function insertMealLogFromFood(
 }
 
 /** Cria um alimento próprio (visível só pra quem criou) no banco de alimentos */
+export interface CustomFoodInput {
+  name: string;
+  category: string;
+  caloriesPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g?: number | null;
+  fatPer100g?: number | null;
+  defaultGrams?: number;
+}
+
 export async function insertCustomFood(
   db: TypedClient,
   profileId: string,
-  input: {
-    name: string;
-    category: string;
-    caloriesPer100g: number;
-    proteinPer100g: number;
-    carbsPer100g?: number | null;
-    fatPer100g?: number | null;
-    defaultGrams?: number;
-  }
+  input: CustomFoodInput
 ) {
   const { data, error } = await db
     .from("foods")
@@ -398,6 +400,26 @@ export async function insertCustomFood(
       default_grams: input.defaultGrams ?? 100,
       featured: true,
     })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Atualiza um alimento próprio (RLS só deixa quando profile_id = auth.uid()) */
+export async function updateFood(db: TypedClient, foodId: string, input: CustomFoodInput) {
+  const { data, error } = await db
+    .from("foods")
+    .update({
+      name: input.name,
+      category: input.category,
+      calories_per_100g: input.caloriesPer100g,
+      protein_per_100g: input.proteinPer100g,
+      carbs_per_100g: input.carbsPer100g ?? null,
+      fat_per_100g: input.fatPer100g ?? null,
+      default_grams: input.defaultGrams ?? 100,
+    })
+    .eq("id", foodId)
     .select("*")
     .single();
   if (error) throw error;
