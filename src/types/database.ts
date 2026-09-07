@@ -78,6 +78,7 @@ export type Database = {
           category: string
           default_grams: number
           fat_per_100g: number | null
+          featured: boolean
           id: string
           name: string
           profile_id: string | null
@@ -89,6 +90,7 @@ export type Database = {
           category: string
           default_grams?: number
           fat_per_100g?: number | null
+          featured?: boolean
           id?: string
           name: string
           profile_id?: string | null
@@ -100,6 +102,7 @@ export type Database = {
           category?: string
           default_grams?: number
           fat_per_100g?: number | null
+          featured?: boolean
           id?: string
           name?: string
           profile_id?: string | null

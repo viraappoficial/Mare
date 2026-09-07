@@ -19,6 +19,8 @@ import {
   insertCustomFood,
   insertMealLog,
   insertMealLogFromFood,
+  updateFood,
+  type CustomFoodInput,
   type FoodRow,
   type GoalRow,
   type MealLogRow,
@@ -86,8 +88,11 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
     await reloadLogs();
   }
 
-  function handleFoodCreated(food: FoodRow) {
-    setFoods((prev) => [...prev, food]);
+  function handleFoodSaved(food: FoodRow) {
+    setFoods((prev) => {
+      const exists = prev.some((f) => f.id === food.id);
+      return exists ? prev.map((f) => (f.id === food.id ? food : f)) : [...prev, food];
+    });
   }
 
   return (
@@ -131,7 +136,7 @@ function AlimentacaoBody({ profile, goal }: { profile: ProfileRow; goal: GoalRow
           proteinConsumed={proteinConsumed}
           onLogged={reloadLogs}
           onDelete={handleDelete}
-          onFoodCreated={handleFoodCreated}
+          onFoodSaved={handleFoodSaved}
         />
       )}
     </>
@@ -256,7 +261,7 @@ function CardapioTab({
   proteinConsumed,
   onLogged,
   onDelete,
-  onFoodCreated,
+  onFoodSaved,
 }: {
   profile: ProfileRow;
   goal: GoalRow;
@@ -266,22 +271,31 @@ function CardapioTab({
   proteinConsumed: number;
   onLogged: () => void;
   onDelete: (id: string) => void;
-  onFoodCreated: (food: FoodRow) => void;
+  onFoodSaved: (food: FoodRow) => void;
 }) {
   const [showCustomForm, setShowCustomForm] = useState(false);
+  const [search, setSearch] = useState("");
   const caloriesLeft = Math.max(goal.calorie_target - caloriesConsumed, 0);
   const proteinLeft = Math.max(goal.protein_target_g - proteinConsumed, 0);
   const overCalories = caloriesConsumed > goal.calorie_target;
 
+  const featuredFoods = useMemo(() => foods.filter((f) => f.featured), [foods]);
+
   const groups = useMemo(() => {
     const byCategory = new Map<string, FoodRow[]>();
-    for (const food of foods) {
+    for (const food of featuredFoods) {
       const list = byCategory.get(food.category) ?? [];
       list.push(food);
       byCategory.set(food.category, list);
     }
     return Array.from(byCategory.entries());
-  }, [foods]);
+  }, [featuredFoods]);
+
+  const searchQuery = search.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return [];
+    return foods.filter((f) => f.name.toLowerCase().includes(searchQuery));
+  }, [foods, searchQuery]);
 
   async function handleAddFood(food: FoodRow, grams: number) {
     if (!supabase) return;
@@ -303,24 +317,68 @@ function CardapioTab({
         <h3 className="mb-1 text-base font-semibold text-ink">
           Adicionar alimento
         </h3>
-        <p className="mb-4 text-sm text-ink/50">
+        <p className="mb-3 text-sm text-ink/50">
           Escolha a quantidade e toque em adicionar — as calorias somam
           automático.
         </p>
-        <div className="flex flex-col gap-5">
-          {groups.map(([category, items]) => (
-            <div key={category}>
-              <h4 className="mb-2 text-sm font-semibold text-ink/70">
-                {foodCategoryLabel(category)}
-              </h4>
-              <div className="flex flex-col gap-2">
-                {items.map((food) => (
-                  <FoodRowPicker key={food.id} food={food} onAdd={handleAddFood} />
-                ))}
-              </div>
-            </div>
-          ))}
+
+        <div className="relative mb-4">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar outro alimento (ex: batata doce, salmão...)"
+            className="w-full rounded-2xl border border-mist bg-white py-3 pl-10 pr-4 text-base text-ink outline-none focus:border-sage"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40"
+          >
+            🔍
+          </span>
         </div>
+
+        {searchQuery ? (
+          <div className="flex flex-col gap-2">
+            {searchResults.length === 0 ? (
+              <p className="py-2 text-sm text-ink/50">
+                Nenhum alimento encontrado com esse nome. Você pode cadastrar
+                ele abaixo.
+              </p>
+            ) : (
+              searchResults.map((food) => (
+                <FoodRowPicker
+                  key={food.id}
+                  food={food}
+                  profile={profile}
+                  onAdd={handleAddFood}
+                  onEdited={onFoodSaved}
+                />
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {groups.map(([category, items]) => (
+              <div key={category}>
+                <h4 className="mb-2 text-sm font-semibold text-ink/70">
+                  {foodCategoryLabel(category)}
+                </h4>
+                <div className="flex flex-col gap-2">
+                  {items.map((food) => (
+                    <FoodRowPicker
+                      key={food.id}
+                      food={food}
+                      profile={profile}
+                      onAdd={handleAddFood}
+                      onEdited={onFoodSaved}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {!showCustomForm ? (
           <button
@@ -334,8 +392,8 @@ function CardapioTab({
           <div className="mt-4 border-t border-mist/60 pt-4">
             <CustomFoodForm
               profile={profile}
-              onCreated={(food) => {
-                onFoodCreated(food);
+              onSaved={(food) => {
+                onFoodSaved(food);
                 setShowCustomForm(false);
               }}
               onCancel={() => setShowCustomForm(false)}
@@ -385,13 +443,18 @@ function CardapioTab({
 
 function FoodRowPicker({
   food,
+  profile,
   onAdd,
+  onEdited,
 }: {
   food: FoodRow;
+  profile: ProfileRow;
   onAdd: (food: FoodRow, grams: number) => Promise<void>;
+  onEdited: (food: FoodRow) => void;
 }) {
   const [grams, setGrams] = useState(String(food.default_grams));
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const gramsNumber = Number(grams) || 0;
   const nutrition = computeFoodNutrition(food, gramsNumber);
@@ -407,13 +470,39 @@ function FoodRowPicker({
     }
   }
 
+  if (editing) {
+    return (
+      <div className="rounded-2xl bg-cream px-4 py-3">
+        <CustomFoodForm
+          profile={profile}
+          initialFood={food}
+          onSaved={(updated) => {
+            onEdited(updated);
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl bg-cream px-4 py-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="truncate text-sm font-medium text-ink">{food.name}</p>
-        <span className="shrink-0 text-xs text-ink/50">
-          {formatNumber(food.calories_per_100g)} kcal / 100 g
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-xs text-ink/50">
+            {formatNumber(food.calories_per_100g)} kcal / 100 g
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={`Editar ${food.name}`}
+            className="text-xs font-medium text-sage-dark underline-offset-2 hover:underline"
+          >
+            Editar
+          </button>
+        </div>
       </div>
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -449,20 +538,35 @@ const customFoodCategoryDefault: FoodCategory = "outro";
 
 function CustomFoodForm({
   profile,
-  onCreated,
+  initialFood,
+  onSaved,
   onCancel,
 }: {
   profile: ProfileRow;
-  onCreated: (food: FoodRow) => void;
+  initialFood?: FoodRow;
+  onSaved: (food: FoodRow) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<FoodCategory>(customFoodCategoryDefault);
-  const [caloriesPer100g, setCaloriesPer100g] = useState("");
-  const [proteinPer100g, setProteinPer100g] = useState("");
-  const [carbsPer100g, setCarbsPer100g] = useState("");
-  const [fatPer100g, setFatPer100g] = useState("");
-  const [defaultGrams, setDefaultGrams] = useState("100");
+  const isOwnFood = initialFood?.profile_id === profile.id;
+  const [name, setName] = useState(initialFood?.name ?? "");
+  const [category, setCategory] = useState<FoodCategory>(
+    (initialFood?.category as FoodCategory) ?? customFoodCategoryDefault
+  );
+  const [caloriesPer100g, setCaloriesPer100g] = useState(
+    initialFood ? String(initialFood.calories_per_100g) : ""
+  );
+  const [proteinPer100g, setProteinPer100g] = useState(
+    initialFood ? String(initialFood.protein_per_100g) : ""
+  );
+  const [carbsPer100g, setCarbsPer100g] = useState(
+    initialFood?.carbs_per_100g != null ? String(initialFood.carbs_per_100g) : ""
+  );
+  const [fatPer100g, setFatPer100g] = useState(
+    initialFood?.fat_per_100g != null ? String(initialFood.fat_per_100g) : ""
+  );
+  const [defaultGrams, setDefaultGrams] = useState(
+    String(initialFood?.default_grams ?? 100)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -471,17 +575,21 @@ function CustomFoodForm({
     if (!supabase || !name || !caloriesPer100g || !proteinPer100g) return;
     setSaving(true);
     setError(null);
+    const input: CustomFoodInput = {
+      name,
+      category,
+      caloriesPer100g: Number(caloriesPer100g),
+      proteinPer100g: Number(proteinPer100g),
+      carbsPer100g: carbsPer100g ? Number(carbsPer100g) : null,
+      fatPer100g: fatPer100g ? Number(fatPer100g) : null,
+      defaultGrams: Number(defaultGrams) || 100,
+    };
     try {
-      const food = await insertCustomFood(supabase, profile.id, {
-        name,
-        category,
-        caloriesPer100g: Number(caloriesPer100g),
-        proteinPer100g: Number(proteinPer100g),
-        carbsPer100g: carbsPer100g ? Number(carbsPer100g) : null,
-        fatPer100g: fatPer100g ? Number(fatPer100g) : null,
-        defaultGrams: Number(defaultGrams) || 100,
-      });
-      onCreated(food);
+      const food =
+        initialFood && isOwnFood
+          ? await updateFood(supabase, initialFood.id, input)
+          : await insertCustomFood(supabase, profile.id, input);
+      onSaved(food);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
@@ -492,8 +600,9 @@ function CustomFoodForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
       <p className="text-sm text-ink/60">
-        Informe os valores por 100 g — o app calcula o resto quando você
-        adicionar a quantidade.
+        {initialFood && !isOwnFood
+          ? "Esse é um alimento padrão, compartilhado — ajustar aqui cria uma versão sua, só visível pra você."
+          : "Informe os valores por 100 g — o app calcula o resto quando você adicionar a quantidade."}
       </p>
       <input
         value={name}
