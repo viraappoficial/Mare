@@ -396,6 +396,7 @@ export async function insertCustomFood(
       carbs_per_100g: input.carbsPer100g ?? null,
       fat_per_100g: input.fatPer100g ?? null,
       default_grams: input.defaultGrams ?? 100,
+      featured: true,
     })
     .select("*")
     .single();

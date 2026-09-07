@@ -93,10 +93,13 @@ src/
   linhas "padrão" (`profile_id null`), visíveis a todo mundo — é o
   catálogo de treino e o banco de alimentos usados no app.
 - **Meu cardápio** (aba na tela Alimentação): a pessoa monta o próprio dia
-  escolhendo alimentos do banco (`foods` — valores por 100g) e digitando os
-  gramas; o app calcula a calorias/proteína na hora (`lib/queries.ts` ->
-  `computeFoodNutrition`). Dá pra cadastrar um alimento próprio (fica
-  visível só pra quem criou) ou registrar algo livre com kcal manual. A
+  escolhendo alimentos do banco (`foods` — valores por 100g, ~65 itens) e
+  digitando os gramas; o app calcula a calorias/proteína na hora
+  (`lib/queries.ts` -> `computeFoodNutrition`). Por padrão aparece uma
+  lista curta de alimentos comuns (`featured = true`); a barra de busca
+  filtra o banco inteiro pra quando o alimento não estiver nessa lista.
+  Dá pra cadastrar um alimento próprio (fica visível só pra quem criou,
+  já marcado como destaque) ou registrar algo livre com kcal manual. A
   soma do dia é comparada com a meta calculada no onboarding.
 - Se o seu projeto Supabase tiver **"Confirm email" ativado** (padrão), a
   conta só libera sessão depois de clicar no link recebido por e-mail. Para

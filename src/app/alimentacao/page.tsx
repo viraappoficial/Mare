@@ -269,19 +269,28 @@ function CardapioTab({
   onFoodCreated: (food: FoodRow) => void;
 }) {
   const [showCustomForm, setShowCustomForm] = useState(false);
+  const [search, setSearch] = useState("");
   const caloriesLeft = Math.max(goal.calorie_target - caloriesConsumed, 0);
   const proteinLeft = Math.max(goal.protein_target_g - proteinConsumed, 0);
   const overCalories = caloriesConsumed > goal.calorie_target;
 
+  const featuredFoods = useMemo(() => foods.filter((f) => f.featured), [foods]);
+
   const groups = useMemo(() => {
     const byCategory = new Map<string, FoodRow[]>();
-    for (const food of foods) {
+    for (const food of featuredFoods) {
       const list = byCategory.get(food.category) ?? [];
       list.push(food);
       byCategory.set(food.category, list);
     }
     return Array.from(byCategory.entries());
-  }, [foods]);
+  }, [featuredFoods]);
+
+  const searchQuery = search.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return [];
+    return foods.filter((f) => f.name.toLowerCase().includes(searchQuery));
+  }, [foods, searchQuery]);
 
   async function handleAddFood(food: FoodRow, grams: number) {
     if (!supabase) return;
@@ -303,24 +312,56 @@ function CardapioTab({
         <h3 className="mb-1 text-base font-semibold text-ink">
           Adicionar alimento
         </h3>
-        <p className="mb-4 text-sm text-ink/50">
+        <p className="mb-3 text-sm text-ink/50">
           Escolha a quantidade e toque em adicionar — as calorias somam
           automático.
         </p>
-        <div className="flex flex-col gap-5">
-          {groups.map(([category, items]) => (
-            <div key={category}>
-              <h4 className="mb-2 text-sm font-semibold text-ink/70">
-                {foodCategoryLabel(category)}
-              </h4>
-              <div className="flex flex-col gap-2">
-                {items.map((food) => (
-                  <FoodRowPicker key={food.id} food={food} onAdd={handleAddFood} />
-                ))}
-              </div>
-            </div>
-          ))}
+
+        <div className="relative mb-4">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar outro alimento (ex: batata doce, salmão...)"
+            className="w-full rounded-2xl border border-mist bg-white py-3 pl-10 pr-4 text-base text-ink outline-none focus:border-sage"
+          />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink/40"
+          >
+            🔍
+          </span>
         </div>
+
+        {searchQuery ? (
+          <div className="flex flex-col gap-2">
+            {searchResults.length === 0 ? (
+              <p className="py-2 text-sm text-ink/50">
+                Nenhum alimento encontrado com esse nome. Você pode cadastrar
+                ele abaixo.
+              </p>
+            ) : (
+              searchResults.map((food) => (
+                <FoodRowPicker key={food.id} food={food} onAdd={handleAddFood} />
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {groups.map(([category, items]) => (
+              <div key={category}>
+                <h4 className="mb-2 text-sm font-semibold text-ink/70">
+                  {foodCategoryLabel(category)}
+                </h4>
+                <div className="flex flex-col gap-2">
+                  {items.map((food) => (
+                    <FoodRowPicker key={food.id} food={food} onAdd={handleAddFood} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {!showCustomForm ? (
           <button
